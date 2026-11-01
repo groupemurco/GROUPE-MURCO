@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { AgendaPrefs } from './agendaPrefs';
-import type { Devis, SavedDevis } from './devis';
+import type { Devis, DevisEstimate, SavedDevis } from './devis';
 import { MURCO_LOGO } from './murcoLogo';
 
 export interface GeoPoint {
@@ -192,6 +192,7 @@ export interface Doc extends Synced {
   applyTps: boolean;
   applyTvq: boolean;
   taxIncluded?: boolean; // les prix incluent déjà la TPS et la TVQ (le total = le prix)
+  estimate?: DevisEstimate; // estimation du prix pour l'entrepreneur (jamais montrée au client)
   discount?: number; // rabais ($, avant taxes)
   deposit?: number; // dépôt déjà reçu ($)
   notes: string;

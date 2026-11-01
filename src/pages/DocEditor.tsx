@@ -289,7 +289,7 @@ export default function DocEditor() {
 
   const duplicate = async () => {
     const st = await getSettings();
-    const copy: Doc = { ...newDoc(doc.type, doc.clientId, st, 'lignes'), title: doc.title, jobAddress: doc.jobAddress, items: doc.items.map((i) => ({ ...i })), applyTps: doc.applyTps, applyTvq: doc.applyTvq, taxIncluded: doc.taxIncluded, discount: doc.discount, notes: doc.notes, devis: doc.devis && structuredClone(doc.devis) };
+    const copy: Doc = { ...newDoc(doc.type, doc.clientId, st, 'lignes'), title: doc.title, jobAddress: doc.jobAddress, items: doc.items.map((i) => ({ ...i })), applyTps: doc.applyTps, applyTvq: doc.applyTvq, taxIncluded: doc.taxIncluded, discount: doc.discount, notes: doc.notes, devis: doc.devis && structuredClone(doc.devis), estimate: doc.estimate && structuredClone(doc.estimate) };
     copy.number = await takeNextNumber(copy.type);
     const nid = await db.docs.add(copy);
     notify(`Copie ${copy.number} créée`);
@@ -326,10 +326,18 @@ export default function DocEditor() {
       const devis = starterDevis();
       // Même montant pour le client: taxes incluses → le prix forfaitaire est l'ancien total (avant rabais)
       const inc = doc.taxIncluded ?? true;
-      upd({ devis, items: devisPriceItems(devis, inc ? round2(tot.total + tot.discount) : tot.lines), taxIncluded: inc, title: doc.title || devis.heading.replace(/^soumission\s+(de\s+|d[’']|pour\s+)?/i, '').replace(/^./, (c) => c.toUpperCase()) });
+      // Les lignes de prix deviennent le calcul du prix (pour toi) sous le devis
+      const lines = doc.items.filter((it) => it.description.trim() && it.unitPrice);
+      upd({
+        devis, items: devisPriceItems(devis, inc ? round2(tot.total + tot.discount) : tot.lines), taxIncluded: inc,
+        ...(lines.length && !doc.taxIncluded ? { estimate: { lines: lines.map((it) => ({ ...it })), note: 'Tes lignes de prix.' } } : {}),
+        title: doc.title || devis.heading.replace(/^soumission\s+(de\s+|d[’']|pour\s+)?/i, '').replace(/^./, (c) => c.toUpperCase()),
+      });
     } else {
-      if (!(await ask({ title: 'Revenir aux lignes de prix?', message: 'Le texte du devis sera retiré. Le prix reste, sur une ligne.', confirm: 'Revenir aux lignes' }))) return;
-      upd({ devis: undefined });
+      // Soumission en lignes: le calcul du prix (avant taxes) devient les lignes, sinon le prix reste sur une ligne
+      const est = doc.estimate?.lines.length ? doc.estimate.lines : null;
+      if (!(await ask({ title: 'Passer en lignes de prix?', message: est ? `Le texte du devis sera retiré. Les ${est.length} lignes du calcul du prix deviennent la soumission (prix avant taxes).` : 'Le texte du devis sera retiré. Le prix reste, sur une ligne.', confirm: 'Passer en lignes' }))) return;
+      upd(est ? { devis: undefined, items: est.map((it) => ({ ...it })), taxIncluded: false } : { devis: undefined });
     }
     void saveSettings({ quoteFormat: format });
   };

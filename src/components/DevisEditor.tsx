@@ -1,9 +1,9 @@
-import { ArrowDown, ArrowUp, BookmarkPlus, CircleHelp, Mic, Plus, Sparkles, Square, Trash2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, BookmarkPlus, Calculator, CircleHelp, Mic, Plus, Sparkles, Square, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { db, saveSettings, type Doc, type LineItem, type Settings } from '../lib/db';
 import {
-  blankDevis, contactFromText, DEVIS_TEMPLATES, devisFromTemplate, devisFromText, devisLineDescription, devisTitle, isDevisEmpty, sectionTotalText, templateKeyFor,
-  type Devis, type DevisDraft, type DevisSection,
+  blankDevis, contactFromText, DEVIS_TEMPLATES, devisFromTemplate, devisFromText, devisLineDescription, devisTitle, estimateTotal, isDevisEmpty, priceFromEstimate,
+  sectionTotalText, templateKeyFor, type Devis, type DevisDraft, type DevisEstimate, type DevisSection,
 } from '../lib/devis';
 import { useSettings } from '../lib/hooks';
 import { listen, speechSupported, type Listening } from '../lib/speech';
@@ -61,7 +61,12 @@ export function DevisEditor({ doc, onChange }: { doc: Doc; onChange: (patch: Par
 
   /** Résultat de l'assistant: devis, prix, adresse; le client est retrouvé (courriel, cell, nom) ou créé. */
   const applyDraft = async (r: DevisDraft, text: string, failed?: string) => {
-    const patch: Partial<Doc> = { devis: r.devis, items: devisPriceItems(r.devis, r.price ?? price) };
+    // Prix: celui qui est dit, sinon l'estimation de l'assistant avec tes prix, sinon on garde le prix actuel
+    const taxIncluded = r.taxIncluded ?? doc.taxIncluded;
+    const est = r.estimate ? estimateTotal(r.estimate.lines) : 0;
+    const guessed = !r.price && est > 0 ? priceFromEstimate(est, { taxIncluded, taxed: doc.applyTps || doc.applyTvq, tpsRate: s.tpsRate, tvqRate: s.tvqRate }) : 0;
+    const patch: Partial<Doc> = { devis: r.devis, items: devisPriceItems(r.devis, r.price ?? (guessed || price)) };
+    if (r.estimate) patch.estimate = r.estimate;
     if (r.taxIncluded !== undefined) patch.taxIncluded = r.taxIncluded;
     if (r.address && !doc.jobAddress) patch.jobAddress = r.address;
     const what = r.devis.heading.replace(/^soumission\s+(de\s+|d[’']|pour\s+)?/i, '').trim();
@@ -96,7 +101,7 @@ export function DevisEditor({ doc, onChange }: { doc: Doc; onChange: (patch: Par
     setQuestions(r.questions ?? []);
     if (failed) return notify(`${failed} ${who}`.trim(), 'err');
     setAiOpen(false);
-    notify(`Devis écrit. ${who || 'Relis-le, mets ton prix, puis envoie.'}`);
+    notify(`Devis écrit. ${who}${guessed ? ` Prix approximatif: ${money(guessed)} (calculé avec tes prix) — change-le si y’a de quoi.` : who ? '' : 'Relis-le, mets ton prix, puis envoie.'}`.trim());
   };
 
   const set = (patch: Partial<Devis>) => {
@@ -188,6 +193,8 @@ export function DevisEditor({ doc, onChange }: { doc: Doc; onChange: (patch: Par
         </div>
       </div>
 
+      {doc.estimate && doc.estimate.lines.length > 0 && <EstimatePanel doc={doc} estimate={doc.estimate} onChange={onChange} />}
+
       <label className="field">Note sous le prix
         <input value={d.priceNote} placeholder="ex.: La couleur du scellant sera déterminée avec vous avant les travaux." onChange={(e) => set({ priceNote: e.target.value })} />
       </label>
@@ -267,7 +274,8 @@ function DevisAi({ doc, initial, canClose, onClose, onDone }: { doc: Doc; initia
       const { aiDevis } = await import('../lib/ai');
       const trades = activeTrades(s).map((k) => tradeOf(k)?.label).filter(Boolean).join(', ');
       const known = doc.clientId ? (await db.clients.get(doc.clientId))?.name : undefined;
-      r = await aiDevis({ company: s.companyName, owner: s.ownerName, trades, text: t, style: styleDevis(s), current, clientKnown: known, model: s.aiModel || undefined });
+      const prices = (await db.services.orderBy('order').toArray()).map((x) => ({ code: x.code, name: x.name, unit: x.unit, price: x.price, minimum: x.minimum }));
+      r = await aiDevis({ company: s.companyName, owner: s.ownerName, trades, text: t, style: styleDevis(s), current, clientKnown: known, prices, model: s.aiModel || undefined });
     } catch (e) {
       // Sans l'assistant: un courriel → on reprend au moins les coordonnées; une phrase → chaque morceau devient un point
       const isMail = /@|\n.*\n/.test(t) && t.length > 120;
@@ -304,6 +312,44 @@ function DevisAi({ doc, initial, canClose, onClose, onDone }: { doc: Doc; initia
         <button type="button" className="btn accent" disabled={busy} onClick={() => void go()}><Sparkles size={16} /> {busy ? 'L’assistant écrit…' : current ? 'Modifier le devis' : 'Écrire le devis'}</button>
       </div>
       <div className="small muted">L’assistant trouve le client (ou l’ajoute), l’adresse et les travaux. Rien n’est envoyé: tu relis avant.</div>
+    </div>
+  );
+}
+
+/** Calcul du prix par l'assistant, avec tes prix: pour toi seulement (jamais sur le devis ni dans le lien client). */
+function EstimatePanel({ doc, estimate, onChange }: { doc: Doc; estimate: DevisEstimate; onChange: (patch: Partial<Doc>) => void }) {
+  const s = useSettings();
+  const total = estimateTotal(estimate.lines);
+  const proposed = priceFromEstimate(total, { taxIncluded: doc.taxIncluded, taxed: doc.applyTps || doc.applyTvq, tpsRate: s.tpsRate, tvqRate: s.tvqRate });
+  const current = docPrice(doc);
+  const setLine = (i: number, patch: Partial<LineItem>) => onChange({ estimate: { ...estimate, lines: estimate.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) } });
+  return (
+    <div className="dv-est">
+      <div className="dv-est-head">
+        <Calculator size={17} />
+        <b>Calcul du prix (pour toi, pas sur le devis)</b>
+        <button type="button" className="btn icon-btn small" onClick={() => onChange({ estimate: undefined })} aria-label="Retirer le calcul"><X size={15} /></button>
+      </div>
+      {estimate.note && <div className="small muted">{estimate.note}</div>}
+      <div className="dv-est-lines">
+        {estimate.lines.map((l, i) => (
+          <div key={i} className="dv-est-line">
+            <div className="dv-est-desc">{l.code && <b>{l.code}</b>} {l.description}</div>
+            <div className="dv-est-calc">
+              <NumInput value={l.quantity} aria-label="Quantité" onChange={(n) => setLine(i, { quantity: n })} />
+              <span>{l.unit} ×</span>
+              <NumInput value={l.unitPrice} aria-label="Prix unitaire" onChange={(n) => setLine(i, { unitPrice: n })} />
+              <span>$</span>
+              <b>{money(lineAmount(l))}</b>
+              <button type="button" className="btn icon-btn small" onClick={() => onChange({ estimate: { ...estimate, lines: estimate.lines.filter((_, j) => j !== i) } })} aria-label="Retirer la ligne"><Trash2 size={14} /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="dv-est-foot">
+        <span>Total avant taxes <b>{money(total)}</b>{proposed !== total ? <> · prix proposé <b>{money(proposed)}</b></> : null}</span>
+        {Math.abs(proposed - current) > 0.004 && <button type="button" className="btn small accent" onClick={() => onChange({ items: devisPriceItems(doc.devis!, proposed) })}>Mettre {money(proposed)}</button>}
+      </div>
     </div>
   );
 }

@@ -1,8 +1,8 @@
 // Devis détaillé: node --experimental-strip-types tests/devis.test.ts
 import assert from 'node:assert/strict';
 import {
-  blankDevis, cleanItem, contactFromText, devisFromJson, devisFromTemplate, devisFromText, devisLineDescription, devisTitle, isDevisEmpty, itemCount,
-  sectionTotalText, splitIncludedTaxes, templateKeyFor, type Devis,
+  blankDevis, cleanItem, contactFromText, devisFromJson, devisFromTemplate, devisFromText, devisLineDescription, devisTitle, estimateTotal, isDevisEmpty, itemCount,
+  priceFromEstimate, sectionTotalText, splitIncludedTaxes, templateKeyFor, type Devis, type PriceRef,
 } from '../src/lib/devis.ts';
 
 // L'exemple de Groupe Murco: 5 + 8 + 1 + 1 = 15 ouvertures
@@ -85,4 +85,32 @@ Merci! Groupe Murco 514-232-1837`;
 assert.deepEqual(contactFromText(mail, { email: 'info@groupemurco.com', phone: '514-232-1837' }), { name: 'Denise Tremblay', email: 'denise.t@exemple.com', phone: '819 555-0101' });
 assert.deepEqual(contactFromText('appelle-moi au (450) 555-1234 ou jo@x.ca'), { name: undefined, email: 'jo@x.ca', phone: '(450) 555-1234' });
 
-console.log('devis: 45 cas OK');
+// Prix estimé: les lignes de l'IA prennent MES prix quand le code existe (minimum compris), le reste garde son prix
+const prices: PriceRef[] = [
+  { code: 'CAF', name: 'Calfeutrage du contour des fenêtres et portes', unit: 'fenêtre', price: 65, minimum: 150 },
+  { code: 'CAR', name: 'Arrachage de l’ancien calfeutrage', unit: 'pi lin', price: 1.5 },
+];
+const est = devisFromJson({
+  titre: 'Soumission de calfeutrage', prix: 0,
+  estimation: [
+    { code: 'caf', description: '16 ouvertures (fenêtres et porte de garage)', quantite: 16, unite: 'fenêtre', prix_unitaire: 999 },
+    { code: '', description: 'Porte de garage (grand contour, estimé)', quantite: 1, unite: 'unité', prix_unitaire: 120 },
+    { code: 'XYZ', description: '', quantite: 2, prix_unitaire: 50 },
+    { code: '', description: 'Rien', quantite: 1, prix_unitaire: 0 },
+  ],
+  explication_prix: '16 ouvertures selon le courriel.',
+}, calf, prices);
+assert.equal(est.price, undefined); // pas de prix donné par le client
+assert.equal(est.estimate!.lines.length, 2);
+assert.deepEqual(est.estimate!.lines[0], { code: 'CAF', description: '16 ouvertures (fenêtres et porte de garage)', unit: 'fenêtre', quantity: 16, unitPrice: 65, minimum: 150 });
+assert.equal(est.estimate!.lines[1].code, '');
+assert.equal(estimateTotal(est.estimate!.lines), 1160); // 16 × 65 + 120
+assert.equal(est.estimate!.note, '16 ouvertures selon le courriel.');
+assert.equal(estimateTotal([{ code: 'CAF', description: 'x', quantity: 1, unitPrice: 65, minimum: 150 }]), 150); // minimum de la ligne
+assert.equal(priceFromEstimate(1160, { taxed: false, tpsRate: 5, tvqRate: 9.975 }), 1160);
+assert.equal(priceFromEstimate(1161, { taxed: false, tpsRate: 5, tvqRate: 9.975 }), 1165); // arrondi aux 5 $
+assert.equal(priceFromEstimate(1000, { taxIncluded: true, taxed: true, tpsRate: 5, tvqRate: 9.975 }), 1150); // 1149,75 avec taxes
+assert.equal(priceFromEstimate(1000, { taxIncluded: false, taxed: true, tpsRate: 5, tvqRate: 9.975 }), 1000);
+assert.equal(devisFromJson({ estimation: 'non' }, calf, prices).estimate, undefined);
+
+console.log('devis: 57 cas OK');

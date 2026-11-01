@@ -3,7 +3,7 @@
 // rien n'est créé sans que l'utilisateur confirme dans l'app.
 import { getAI, getGenerativeModel, VertexAIBackend, Schema, type ChatSession, type FunctionCall, type FunctionDeclaration, type Part } from 'firebase/ai';
 import type { Intent, IntentKind } from './assistant';
-import { devisFromJson, type Devis, type DevisDraft } from './devis';
+import { devisFromJson, type Devis, type DevisDraft, type PriceRef } from './devis';
 import { findClients } from './fuzzy';
 import { firebaseApp, getFirebaseConfig } from './sync';
 
@@ -313,7 +313,7 @@ Ce qu’il veut dire: ${opts.intent}
  * Devis à partir d'un courriel du client ou de quelques mots: l'IA écrit le devis (dans le style du modèle),
  * repère le client (nom, courriel, téléphone, adresse) et note ce qui manque pour bien chiffrer.
  */
-export async function aiDevis(opts: { company: string; owner: string; trades: string; text: string; style: Devis; current?: Devis; clientKnown?: string; model?: string }): Promise<DevisDraft> {
+export async function aiDevis(opts: { company: string; owner: string; trades: string; text: string; style: Devis; current?: Devis; clientKnown?: string; prices?: PriceRef[]; model?: string }): Promise<DevisDraft> {
   const app = firebaseApp();
   if (!app) throw new Error('Firebase n’est pas configuré');
   const ai = getAI(app, { backend: new VertexAIBackend('global') });
@@ -340,7 +340,11 @@ Règles:
 - « client »: les coordonnées du client trouvées dans le texte (nom, contact, courriel, telephone, adresse); jamais celles de ${opts.company || 'l’entreprise'}.${opts.clientKnown ? ` Le client est déjà choisi: ${opts.clientKnown}.` : ''}
 - « adresse »: l’adresse des travaux si elle est donnée. « courriel_client »: true si le texte est un message écrit par le client.
 - « questions »: ce qu’il faudrait demander au client pour bien chiffrer (0 à 3 courtes questions).
-Format JSON: {"titre":"","sections":[{"titre":"","points":[""],"compter":""}],"note_prix":"","conditions":[""],"mot_de_la_fin":"","prix":0,"taxes_incluses":true,"adresse":"","client":{"nom":"","contact":"","courriel":"","telephone":"","adresse":""},"courriel_client":false,"questions":[""]}
+- « estimation »: le calcul du prix AVANT taxes avec MES prix ci-dessous: une ligne par élément (code de ma liste quand il s’applique, description, quantite, unite, prix_unitaire). Quantités selon le texte (ex.: 6 fenêtres + 9 fenêtres + 1 porte = 16 au code des fenêtres). Si rien dans ma liste ne s’applique, mets code vide et un prix réaliste au Québec, et écris « (estimé) » dans la description. Si une quantité n’est pas dite, suppose une valeur raisonnable.
+- « explication_prix »: une phrase courte sur les hypothèses du calcul (quantités supposées, ce qui n’est pas compté).
+Mes prix (code | description | unité | prix | minimum de la ligne):
+${(opts.prices ?? []).slice(0, 90).map((p) => `${p.code} | ${p.name} | ${p.unit} | ${p.price} | ${p.minimum || 0}`).join('\n') || '(aucune liste: estime avec des prix réalistes au Québec)'}
+Format JSON: {"titre":"","sections":[{"titre":"","points":[""],"compter":""}],"note_prix":"","conditions":[""],"mot_de_la_fin":"","prix":0,"taxes_incluses":true,"adresse":"","client":{"nom":"","contact":"","courriel":"","telephone":"","adresse":""},"courriel_client":false,"questions":[""],"estimation":[{"code":"","description":"","quantite":1,"unite":"","prix_unitaire":0}],"explication_prix":""}
 Texte:
 """
 ${opts.text.slice(0, 12000)}
@@ -351,7 +355,7 @@ Réponds uniquement avec le JSON.`;
     try {
       const r = await getGenerativeModel(ai, { model: m, generationConfig: { temperature: 0.3, responseMimeType: 'application/json' } }, { timeout: AI_TIMEOUT_MS * 2 }).generateContent(prompt);
       const txt = r.response.text().trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
-      return devisFromJson(JSON.parse(txt), opts.current ?? opts.style);
+      return devisFromJson(JSON.parse(txt), opts.current ?? opts.style, opts.prices);
     } catch (e) {
       last = e;
       if (e instanceof SyntaxError) continue;

@@ -1,5 +1,6 @@
 // Devis détaillé: une soumission rédigée (ouvrages visés, travaux inclus, prix forfaitaire, conditions)
 // plutôt qu'une liste de lignes de prix. Module pur (testé avec node): pas de Dexie ici.
+import type { LineItem } from './db';
 
 export interface DevisSection {
   title: string; // ex.: « Ouvertures visées »
@@ -250,6 +251,58 @@ export interface DevisContact {
   address?: string;
 }
 
+/** Estimation du prix (pour l'entrepreneur seulement, jamais sur le devis): lignes avec ses propres prix. */
+export interface DevisEstimate {
+  lines: LineItem[];
+  note: string; // hypothèses de l'assistant (quantités supposées…)
+}
+
+/** Un prix de la liste de l'entreprise (codes et prix). */
+export interface PriceRef {
+  code: string;
+  name: string;
+  unit: string;
+  price: number;
+  minimum?: number;
+}
+
+const lineTotal = (it: Pick<LineItem, 'quantity' | 'unitPrice' | 'minimum'>) => {
+  const raw = (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0);
+  return r2(it.quantity > 0 && it.minimum && raw < it.minimum ? it.minimum : raw);
+};
+export const estimateTotal = (lines: LineItem[]) => r2(lines.reduce((a, it) => a + lineTotal(it), 0));
+
+/** Prix forfaitaire proposé à partir de l'estimation (avant taxes): taxes ajoutées si le prix les inclut, arrondi aux 5 $. */
+export function priceFromEstimate(total: number, o: { taxIncluded?: boolean; taxed: boolean; tpsRate: number; tvqRate: number }): number {
+  const gross = o.taxIncluded && o.taxed ? total * (1 + (o.tpsRate + o.tvqRate) / 100) : total;
+  return gross > 0 ? Math.ceil(r2(gross) / 5) * 5 : 0;
+}
+
+/** Lignes de l'IA → lignes avec MES prix quand le code existe (on ne se fie pas au prix inventé). */
+export function estimateFromJson(raw: unknown, prices: PriceRef[]): DevisEstimate | undefined {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const list = Array.isArray(o.estimation) ? o.estimation : [];
+  const lines: LineItem[] = list
+    .map((x) => (x && typeof x === 'object' ? (x as Record<string, unknown>) : {}))
+    .map((x) => {
+      const code = String(x.code ?? '').trim().toUpperCase();
+      const ref = code ? prices.find((p) => p.code.toUpperCase() === code) : undefined;
+      const qty = Number(x.quantite);
+      const unitPrice = ref ? ref.price : Number(x.prix_unitaire);
+      return {
+        code: ref ? ref.code : '',
+        description: String(x.description ?? '').trim() || ref?.name || '',
+        unit: ref?.unit ?? (String(x.unite ?? '').trim() || 'unité'),
+        quantity: Number.isFinite(qty) && qty > 0 ? r2(qty) : 1,
+        unitPrice: Number.isFinite(unitPrice) && unitPrice >= 0 ? r2(unitPrice) : 0,
+        ...(ref?.minimum ? { minimum: ref.minimum } : {}),
+      };
+    })
+    .filter((x) => x.description && x.unitPrice > 0);
+  if (!lines.length) return undefined;
+  return { lines, note: typeof o.explication_prix === 'string' ? o.explication_prix.trim() : '' };
+}
+
 export interface DevisDraft {
   devis: Devis;
   price?: number;
@@ -258,9 +311,10 @@ export interface DevisDraft {
   client?: DevisContact; // coordonnées trouvées dans le courriel
   fromClient?: boolean; // le texte est un message du client (gardé dans sa conversation)
   questions?: string[]; // ce qui manque pour bien chiffrer
+  estimate?: DevisEstimate; // prix estimé avec les prix de l'entreprise
 }
 
-export function devisFromJson(raw: unknown, fallback: Devis): DevisDraft {
+export function devisFromJson(raw: unknown, fallback: Devis, prices: PriceRef[] = []): DevisDraft {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const str = (v: unknown, d = '') => (typeof v === 'string' ? v.trim() : d);
   const list = (v: unknown) => (Array.isArray(v) ? v.map((x) => str(x)).filter(Boolean) : []);
@@ -286,6 +340,7 @@ export function devisFromJson(raw: unknown, fallback: Devis): DevisDraft {
     client: Object.values(client).some(Boolean) ? client : undefined,
     fromClient: o.courriel_client === true,
     questions: list(o.questions),
+    estimate: estimateFromJson(raw, prices),
   };
 }
 

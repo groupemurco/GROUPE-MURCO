@@ -1781,3 +1781,18 @@ button.agh-ring:hover .fg { stroke: var(--amber-ink); }
 @media (max-width: 860px) {
   .dv-ai-actions .btn.accent { flex: 1 1 auto; justify-content: center; }
 }
+
+/* Calcul du prix par l'assistant (pour l'entrepreneur seulement) */
+.dv-est { display: grid; gap: 8px; padding: 12px; border-radius: var(--radius-sm); border: 1px dashed var(--line-strong); background: var(--surface-2); }
+.dv-est-head { display: flex; align-items: center; gap: 8px; }
+.dv-est-head b { flex: 1; }
+.dv-est-lines { display: grid; gap: 8px; }
+.dv-est-line { display: grid; gap: 4px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.dv-est-desc { font-size: 0.9rem; }
+.dv-est-desc b { color: var(--amber-ink); margin-right: 4px; }
+.dv-est-calc { display: flex; align-items: center; gap: 5px; font-size: 0.86rem; color: var(--muted); }
+.dv-est-calc input { width: 64px; flex: none; padding: 5px 7px; min-height: 34px; }
+.dv-est-calc b { margin-left: auto; color: var(--ink); white-space: nowrap; }
+.dv-est-calc span { white-space: nowrap; }
+.dv-est-calc .btn { flex: none; min-height: 32px; min-width: 32px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-color: transparent; background: transparent; color: var(--muted); }
+.dv-est-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 0.92rem; }
