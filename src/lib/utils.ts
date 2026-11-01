@@ -1,4 +1,5 @@
 import type { Doc, DocStatus, LineItem, Settings } from './db';
+import { splitIncludedTaxes } from './devis';
 import { saveFile } from './native';
 
 export const money = (n: number) =>
@@ -59,14 +60,16 @@ export function lineHitsMinimum(it: Pick<LineItem, 'quantity' | 'unitPrice' | 'm
 }
 
 export function docTotals(
-  doc: Pick<Doc, 'items' | 'applyTps' | 'applyTvq' | 'payments' | 'discount' | 'deposit'>,
+  doc: Pick<Doc, 'items' | 'applyTps' | 'applyTvq' | 'payments' | 'discount' | 'deposit' | 'taxIncluded'>,
   s: Pick<Settings, 'tpsRate' | 'tvqRate'>,
 ): Totals {
   const lines = round2(doc.items.reduce((sum, it) => sum + lineAmount(it), 0));
   const discount = round2(Math.min(Number(doc.discount) || 0, lines));
-  const subtotal = round2(lines - discount);
-  const tps = doc.applyTps ? round2((subtotal * s.tpsRate) / 100) : 0;
-  const tvq = doc.applyTvq ? round2((subtotal * s.tvqRate) / 100) : 0;
+  // Prix « taxes incluses »: le total reste le prix, on en extrait les taxes
+  const inc = doc.taxIncluded ? splitIncludedTaxes(round2(lines - discount), s.tpsRate, s.tvqRate, doc.applyTps, doc.applyTvq) : null;
+  const subtotal = inc ? inc.subtotal : round2(lines - discount);
+  const tps = inc ? inc.tps : doc.applyTps ? round2((subtotal * s.tpsRate) / 100) : 0;
+  const tvq = inc ? inc.tvq : doc.applyTvq ? round2((subtotal * s.tvqRate) / 100) : 0;
   const total = round2(subtotal + tps + tvq);
   const deposit = round2(Number(doc.deposit) || 0);
   const paid = round2(deposit + (doc.payments ?? []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0));

@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Banknote, Bell, ChevronRight, Plus } from 'lucide-react';
+import { Banknote, Bell, ChevronRight, Plus, ScrollText } from 'lucide-react';
 import { CountUp } from '../components/CountUp';
 import { PageHero, Ring } from '../components/PageHero';
 import { celebrate } from '../lib/feel';
@@ -92,7 +92,10 @@ export default function DocList({ type }: { type: DocType }) {
         sub={isInvoice
           ? `${open.length} facture${open.length > 1 ? 's' : ''} ouverte${open.length > 1 ? 's' : ''}${late.length ? ` · ${late.length} en retard` : ''}`
           : `${open.length} soumission${open.length > 1 ? 's' : ''} envoyée${open.length > 1 ? 's' : ''} sans réponse`}
-        actions={<button className="agh-btn solid" onClick={() => nav(`/doc/new?type=${type}`)}><Plus size={16} /> {isInvoice ? 'Facture' : 'Soumission'}</button>}
+        actions={<>
+          {!isInvoice && <button className="agh-btn" onClick={() => nav('/doc/new?type=quote&format=devis')}><ScrollText size={16} /> Devis détaillé</button>}
+          <button className="agh-btn solid" onClick={() => nav(`/doc/new?type=${type}${isInvoice ? '' : '&format=lignes'}`)}><Plus size={16} /> {isInvoice ? 'Facture' : 'Soumission'}</button>
+        </>}
       >
         <div className="agh-row">
           {isInvoice ? (

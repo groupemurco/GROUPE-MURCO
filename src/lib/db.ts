@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { AgendaPrefs } from './agendaPrefs';
+import type { Devis, SavedDevis } from './devis';
 import { MURCO_LOGO } from './murcoLogo';
 
 export interface GeoPoint {
@@ -88,6 +89,9 @@ export interface Settings extends Synced {
   aiAssistant?: boolean; // assistant IA (Gemini via Firebase AI Logic); par défaut: actif si Firebase est configuré
   aiModel?: string; // modèle Gemini (vide = le défaut)
   canadaPostKey?: string; // Postes Canada AddressComplete (adresses officielles pendant la saisie)
+  tagline?: string; // sous la signature des devis (ex.: « Calfeutrage • Aluminium »)
+  quoteFormat?: 'lignes' | 'devis'; // format des nouvelles soumissions (le dernier utilisé)
+  devisTemplates?: SavedDevis[]; // modèles de devis enregistrés
   todoSnooze?: Record<string, string>; // « À confirmer »: éléments remis à plus tard (clé → date de retour)
   // Gmail / Comptable
   googleClientId: string;
@@ -183,8 +187,10 @@ export interface Doc extends Synced {
   jobGeo?: GeoPoint;
   title: string; // description courte de la job (sert de raison pour le journal de bord)
   items: LineItem[];
+  devis?: Devis; // soumission rédigée (devis détaillé): le prix reste dans items (une ligne forfaitaire)
   applyTps: boolean;
   applyTvq: boolean;
+  taxIncluded?: boolean; // les prix incluent déjà la TPS et la TVQ (le total = le prix)
   discount?: number; // rabais ($, avant taxes)
   deposit?: number; // dépôt déjà reçu ($)
   notes: string;
@@ -763,7 +769,7 @@ const MURCO_PAYMENTS_ENDPOINT = 'https://northamerica-northeast1-murco-9658e.clo
 export function withMurcoDefaults(s: Settings): Settings {
   // Seulement pour le compte de Groupe Murco: le produit sert aussi à d'autres entreprises, qui ne doivent rien en hériter
   if (!/@groupemurco\.com$/i.test(s.email ?? '')) return s;
-  return { ...s, googleClientId: s.googleClientId || MURCO_GOOGLE_CLIENT_ID, paymentsEndpoint: s.paymentsEndpoint || MURCO_PAYMENTS_ENDPOINT, logo: s.logo || MURCO_LOGO };
+  return { ...s, googleClientId: s.googleClientId || MURCO_GOOGLE_CLIENT_ID, paymentsEndpoint: s.paymentsEndpoint || MURCO_PAYMENTS_ENDPOINT, logo: s.logo || MURCO_LOGO, website: s.website || 'www.groupemurco.com', tagline: s.tagline ?? 'Calfeutrage • Aluminium' };
 }
 
 export async function getSettings(): Promise<Settings> {

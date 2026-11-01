@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  CalendarDays, Camera, Car, FileText, ClipboardList, Package, Search, Settings, Tag, User, Users, Zap, Home, Mail, Briefcase, type LucideIcon,
+  CalendarDays, Camera, Car, FileText, ClipboardList, Package, Search, Settings, Tag, User, Users, Zap, Home, Mail, Briefcase, type LucideIcon, ScrollText,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -20,7 +20,8 @@ interface Item {
 const ACTIONS: Item[] = [
   { group: 'Actions', label: 'Facture express', sub: 'en 30 secondes', icon: Zap, to: '/express', keywords: 'rapide nouvelle facture vite' },
   { group: 'Actions', label: 'Nouvelle facture', icon: FileText, to: '/doc/new?type=invoice', keywords: 'creer' },
-  { group: 'Actions', label: 'Nouvelle soumission', icon: ClipboardList, to: '/doc/new?type=quote', keywords: 'devis estimation' },
+  { group: 'Actions', label: 'Nouvelle soumission', icon: ClipboardList, to: '/doc/new?type=quote&format=lignes', keywords: 'devis estimation' },
+  { group: 'Actions', label: 'Nouveau devis détaillé', icon: ScrollText, to: '/doc/new?type=quote&format=devis', keywords: 'devis soumission forfait calfeutrage redige' },
   { group: 'Actions', label: 'Planifier un job', icon: CalendarDays, to: '/job/new', keywords: 'agenda rendez-vous' },
   { group: 'Actions', label: 'Photo de reçu', icon: Camera, to: '/depenses/new', keywords: 'depense essence' },
   { group: 'Actions', label: 'Ajouter un déplacement', icon: Car, to: '/km?add=1', keywords: 'km kilometrage' },

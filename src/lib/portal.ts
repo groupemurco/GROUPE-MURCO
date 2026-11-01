@@ -4,6 +4,7 @@ import {
   collection, connectFirestoreEmulator, doc, getDoc, initializeFirestore, onSnapshot, query, setDoc, updateDoc, where, type Firestore,
 } from 'firebase/firestore';
 import { db, getSettings, type Doc, type LineItem, type Review, type Signature } from './db';
+import type { Devis } from './devis';
 import { configFromLink, getFirebaseConfig, onSyncAttach, onSyncedPut, syncContext, type FirebaseConfig } from './sync';
 import { companyAddressLines, docTotals, type Totals } from './utils';
 import { publicBase } from './native';
@@ -36,6 +37,8 @@ export interface PortalData {
     cardPayments?: boolean;
     payEndpoint?: string;
     reviewUrl?: string;
+    website?: string; // signature du devis
+    tagline?: string;
   };
   client: { name: string; address: string };
   lang?: 'fr' | 'en'; // langue de la page client
@@ -48,8 +51,10 @@ export interface PortalData {
     title: string;
     jobAddress: string;
     items: LineItem[];
+    devis?: Devis | null; // soumission rédigée (devis détaillé)
     applyTps: boolean;
     applyTvq: boolean;
+    taxIncluded?: boolean;
     discount: number;
     deposit: number;
     notes: string;
@@ -94,6 +99,8 @@ export async function buildPortalData(d: Doc, token: string, owner: string): Pro
       cardPayments: s.cardPayments && !!s.paymentsEndpoint,
       payEndpoint: s.cardPayments ? s.paymentsEndpoint.replace(/\/+$/, '') : '',
       reviewUrl: s.googleReviewUrl || '',
+      website: s.website || '',
+      tagline: s.tagline ?? '',
     },
     client: { name: c?.name ?? '', address: c?.address ?? '' },
     lang: docLangOf(d, c),
@@ -106,8 +113,10 @@ export async function buildPortalData(d: Doc, token: string, owner: string): Pro
       title: d.title,
       jobAddress: d.jobAddress,
       items: d.items.map(({ calc: _calc, ...it }) => it),
+      devis: d.devis ?? null,
       applyTps: d.applyTps,
       applyTvq: d.applyTvq,
+      taxIncluded: !!d.taxIncluded,
       discount: d.discount ?? 0,
       deposit: d.deposit ?? 0,
       notes: d.notes,

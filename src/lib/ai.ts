@@ -3,6 +3,7 @@
 // rien n'est créé sans que l'utilisateur confirme dans l'app.
 import { getAI, getGenerativeModel, VertexAIBackend, Schema, type ChatSession, type FunctionCall, type FunctionDeclaration, type Part } from 'firebase/ai';
 import type { Intent, IntentKind } from './assistant';
+import { devisFromJson, type Devis } from './devis';
 import { findClients } from './fuzzy';
 import { firebaseApp, getFirebaseConfig } from './sync';
 
@@ -302,6 +303,42 @@ Ce qu’il veut dire: ${opts.intent}
       return r.response.text().trim();
     } catch (e) {
       last = e;
+      if (!notFound(e) && !overQuota(e)) throw e;
+    }
+  }
+  throw last;
+}
+
+/** Rédige un devis détaillé (sections à puces, conditions) à partir de quelques mots, dans le style du modèle. */
+export async function aiDevis(opts: { company: string; trades: string; description: string; base: Devis; model?: string }): Promise<ReturnType<typeof devisFromJson>> {
+  const app = firebaseApp();
+  if (!app) throw new Error('Firebase n’est pas configuré');
+  const ai = getAI(app, { backend: new VertexAIBackend('global') });
+  const example = {
+    titre: opts.base.heading,
+    sections: opts.base.sections.map((s) => ({ titre: s.title, points: s.items, compter: s.countLabel ?? '' })),
+    note_prix: opts.base.priceNote,
+    conditions: opts.base.conditions,
+    mot_de_la_fin: opts.base.closing,
+  };
+  const prompt = `Tu rédiges un devis (soumission détaillée) pour ${opts.company || 'une entreprise de services'} (${opts.trades || 'entrepreneur'}), au Québec.
+Français du Québec, ton professionnel, vouvoiement. Garde exactement la structure et le style de l’exemple; adapte le contenu à la description.
+Règles: une section « visée » avec les éléments chiffrés (ex.: « 5 fenêtres au sous-sol »), puis « Travaux inclus » (phrases terminées par « ; », la dernière par « . »).
+« compter » = le mot pour le total de la section (ex.: « ouvertures »), sinon vide. N’invente pas de prix: « prix » seulement s’il est dit (nombre, sans $).
+« taxes_incluses »: true si on dit taxes incluses, false si on dit plus taxes, sinon absent. « adresse »: l’adresse des travaux si elle est dite.
+Exemple (format JSON à respecter):
+${JSON.stringify(example)}
+Description de la job: ${opts.description}
+Réponds uniquement avec le JSON.`;
+  let last: unknown;
+  for (const m of opts.model ? [opts.model, ...MODELS] : MODELS) {
+    try {
+      const r = await getGenerativeModel(ai, { model: m, generationConfig: { temperature: 0.3, responseMimeType: 'application/json' } }, { timeout: AI_TIMEOUT_MS }).generateContent(prompt);
+      const txt = r.response.text().trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
+      return devisFromJson(JSON.parse(txt), opts.base);
+    } catch (e) {
+      last = e;
+      if (e instanceof SyntaxError) continue;
       if (!notFound(e) && !overQuota(e)) throw e;
     }
   }

@@ -1722,3 +1722,48 @@ button.agh-ring:hover .fg { stroke: var(--amber-ink); }
 .lp-punch-btn { justify-self: center; width: 150px; height: 150px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(160deg, #1f9a6e, #157f5b); color: #fff; font-weight: 800; font-size: 1.3rem; box-shadow: 0 0 0 10px rgba(31, 154, 110, 0.15), 0 18px 40px rgba(21, 127, 91, 0.4); margin: 6px 0; }
 .lp-punch-time { text-align: center; color: var(--lp-muted); }
 @media (max-width: 800px) { .lp-row { grid-template-columns: 1fr; } .lp-row.rev .lp-copy { order: 0; } }
+
+/* Devis détaillé (soumission rédigée) */
+.doc-format-head { flex-wrap: wrap; justify-content: space-between; }
+.doc-format button { padding-inline: 12px; }
+.devis-ed { display: grid; gap: 14px; }
+.dv-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.dv-tools .dv-tpl { flex: 1 1 200px; width: auto; min-width: 0; }
+.dv-preview { display: block; margin-top: 6px; font-weight: 700; letter-spacing: .02em; color: var(--muted); font-size: 0.78rem; }
+.dv-sec { border: 1px solid var(--line); border-left: 3px solid var(--amber); border-radius: var(--radius-sm); padding: 10px; background: var(--surface-2); display: grid; gap: 8px; }
+.dv-sec-head { display: flex; gap: 6px; align-items: center; }
+.dv-sec-title { flex: 1; min-width: 0; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; font-size: 0.86rem; }
+.dv-sec textarea { min-height: 76px; line-height: 1.45; }
+.dv-count { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 0.88rem; }
+.dv-count input:not([type=checkbox]) { width: 150px; }
+.dv-count b { color: var(--amber-ink); }
+.dv-add { justify-self: start; }
+.dv-price { border-radius: var(--radius-sm); padding: 12px; background: var(--amber-soft); border-left: 3px solid var(--amber); display: grid; gap: 8px; }
+.dv-price-label { font-weight: 700; text-transform: uppercase; letter-spacing: .02em; font-size: 0.82rem; background: transparent; border-color: transparent; padding-inline: 0; }
+.dv-price-label:focus { background: var(--surface); padding-inline: 8px; }
+.dv-price-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dv-price-row input:not([type=checkbox]) { width: 160px; font-size: 1.35rem; font-weight: 800; }
+.dv-price-row > span { font-size: 1.2rem; font-weight: 700; }
+.dv-price-row .check { margin-left: auto; }
+.dv-sign { display: grid; gap: 3px; padding: 10px 12px; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
+.dv-sign input { margin-top: 2px; }
+.dv-saved { display: grid; gap: 6px; margin-top: 12px; }
+@media (max-width: 860px) {
+  .doc-format { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+  .dv-tools .btn { flex: 1 1 auto; justify-content: center; }
+  .dv-price-row input:not([type=checkbox]) { width: 100%; flex: 1 1 140px; }
+  .dv-price-row .check { margin-left: 0; }
+}
+
+/* Devis dans la page client */
+.portal-devis h2 { margin: 14px 0 6px; font-size: 1.05rem; letter-spacing: .02em; }
+.portal-devis .pd-sec { margin-top: 14px; }
+.portal-devis h3 { margin: 0 0 6px; font-size: 0.82rem; text-transform: uppercase; letter-spacing: .04em; color: var(--amber-ink); }
+.portal-devis ul { margin: 0; padding-left: 20px; display: grid; gap: 3px; }
+.portal-devis .pd-total { margin-top: 6px; font-weight: 700; }
+.portal-devis .pd-price { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 16px; padding: 14px; border-radius: var(--radius-sm); background: var(--amber-soft); border-left: 3px solid var(--amber); }
+.portal-devis .pd-price small { display: block; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--amber-ink); }
+.portal-devis .pd-price span { font-size: 0.9rem; color: var(--muted); }
+.portal-devis .pd-price b { font-size: 1.5rem; white-space: nowrap; }
+.portal-devis .pd-note { font-style: italic; color: var(--muted); }
+.portal-devis .pd-sign { display: grid; gap: 2px; margin: 16px 0; font-size: 0.92rem; }

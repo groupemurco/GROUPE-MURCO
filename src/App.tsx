@@ -1,5 +1,5 @@
 import { Mic,
-  CalendarDays, Camera, ChevronLeft, Crown, Download, Lock, FolderOpen, TrendingUp, Inbox, Clock, Briefcase, UsersRound, Car, ClipboardList, FileText, Home, LayoutGrid, Mail, Moon, Package, Plus, Search, Settings, Sparkles, Sun, SunMoon, Tag, Timer, Users, X, Zap, ImagePlus, Truck, Wrench, type LucideIcon,
+  CalendarDays, Camera, ChevronLeft, Crown, Download, Lock, FolderOpen, TrendingUp, Inbox, Clock, Briefcase, UsersRound, Car, ClipboardList, FileText, Home, LayoutGrid, Mail, Moon, Package, Plus, Search, Settings, Sparkles, Sun, SunMoon, Tag, Timer, Users, X, Zap, ImagePlus, Truck, Wrench, type LucideIcon, ScrollText,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -137,7 +137,8 @@ const QUICK: { label: string; icon: LucideIcon; to: string; roles?: Role[] }[] =
   { label: 'Planifier un job', icon: CalendarDays, to: '/job/new' },
   { label: 'Photo de reçu', icon: Camera, to: '/depenses/new' },
   { label: 'Photo de job', icon: ImagePlus, to: '/job/new?photo=1', roles: ['employe', 'vendeur'] },
-  { label: 'Soumission', icon: ClipboardList, to: '/doc/new?type=quote', roles: ['vendeur'] },
+  { label: 'Soumission', icon: ClipboardList, to: '/doc/new?type=quote&format=lignes', roles: ['vendeur'] },
+  { label: 'Devis détaillé', icon: ScrollText, to: '/doc/new?type=quote&format=devis', roles: ['vendeur'] },
   { label: 'Nouvelle demande', icon: Inbox, to: '/demandes?new=1', roles: ['vendeur'] },
   { label: 'Facture complète', icon: FileText, to: '/doc/new?type=invoice' },
 ];

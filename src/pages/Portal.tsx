@@ -10,6 +10,7 @@ import { loadPortal, reviewPortal, signPortal, startCardPayment, type PortalData
 import type { Review } from '../lib/db';
 import { dateFor, moneyFor, unitFor, type DocLang } from '../lib/docLang';
 import { downloadBlob, lineAmount } from '../lib/utils';
+import { devisItems, devisTitle, sectionTotalText, type Devis } from '../lib/devis';
 
 /** Page publique envoyée au client: voir, accepter (signer) et payer. */
 export default function Portal() {
@@ -65,10 +66,12 @@ export default function Portal() {
       tpsNumber: p.company.tpsNumber,
       tvqNumber: p.company.tvqNumber,
       chargeTaxes: p.company.chargeTaxes,
+      website: p.company.website ?? '',
+      tagline: p.company.tagline,
     };
     const docObj: Doc = {
       type: d.kind, number: d.number, clientId: 0, date: d.date, dueDate: d.dueDate, jobDate: d.jobDate, jobAddress: d.jobAddress, title: d.title,
-      items: d.items, applyTps: d.applyTps, applyTvq: d.applyTvq, discount: d.discount, deposit: d.deposit, notes: d.notes, status: d.status, payments: [],
+      items: d.items, devis: d.devis ?? undefined, taxIncluded: d.taxIncluded, applyTps: d.applyTps, applyTvq: d.applyTvq, discount: d.discount, deposit: d.deposit, notes: d.notes, status: d.status, payments: [],
       signature: p.signature ?? undefined, createdAt: '', updatedAt: '', lang,
     };
     const blob = buildDocPdf(docObj, { name: p.client.name, address: p.client.address, contact: '', email: '', phone: '', notes: '', createdAt: '' }, settings).output('blob');
@@ -125,6 +128,7 @@ export default function Portal() {
         <div className="small muted">{isQuote ? L('Préparée pour', 'Prepared for') : L('Facturée à', 'Bill to')}</div>
         <div style={{ fontWeight: 700 }}>{p.client.name}</div>
         {d.jobAddress && <div className="small muted">{L('Lieu des travaux', 'Job site')}: {d.jobAddress}</div>}
+        {d.devis ? <PortalDevis devis={d.devis} company={p.company} lang={lang} total={t} taxIncluded={!!d.taxIncluded} taxed={d.applyTps || d.applyTvq} money={money} /> : <>
         {d.title && <h2 style={{ marginTop: 12 }}>{d.title}</h2>}
         <div className="table-wrap">
           <table className="list">
@@ -143,13 +147,14 @@ export default function Portal() {
         </div>
         <div className="totals" style={{ marginTop: 12 }}>
           {t.discount > 0 && <div><span>{L('Rabais', 'Discount')}</span><span>−{money(t.discount)}</span></div>}
-          {d.applyTps && <div><span>{L('TPS', 'GST')}</span><span>{money(t.tps)}</span></div>}
-          {d.applyTvq && <div><span>{L('TVQ', 'QST')}</span><span>{money(t.tvq)}</span></div>}
-          <div className="grand"><span>Total</span><span>{money(t.total)}</span></div>
+          {d.applyTps && <div><span>{L('TPS', 'GST')}{d.taxIncluded ? L(' incluse', ' included') : ''}</span><span>{money(t.tps)}</span></div>}
+          {d.applyTvq && <div><span>{L('TVQ', 'QST')}{d.taxIncluded ? L(' incluse', ' included') : ''}</span><span>{money(t.tvq)}</span></div>}
+          <div className="grand"><span>Total{d.taxIncluded ? L(' (taxes incluses)', ' (taxes included)') : ''}</span><span>{money(t.total)}</span></div>
           {t.deposit > 0 && <div><span>{L('Dépôt reçu', 'Deposit received')}</span><span>−{money(t.deposit)}</span></div>}
           {!isQuote && t.paid > 0 && <div className="grand"><span>{L('Solde', 'Balance')}</span><span>{money(t.balance)}</span></div>}
         </div>
         {d.notes && <p className="small" style={{ whiteSpace: 'pre-wrap' }}>{d.notes}</p>}
+        </>}
         <button className="btn" onClick={pdf}><Download size={16} /> {L('Télécharger le PDF', 'Download PDF')}</button>
       </div>
 
@@ -255,6 +260,48 @@ function ReviewCard({ p, token, cfg, onDone }: { p: PortalData; token: string; c
           <button className="btn accent block" style={{ marginTop: 8 }} disabled={busy} onClick={() => send({ stars, comment: comment.trim() || undefined, at: new Date().toISOString() })}>{L('Envoyer', 'Send')}</button>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** Devis détaillé tel que le client le lit (mêmes sections que le PDF). */
+function PortalDevis({ devis, company, lang, total, taxIncluded, taxed, money }: {
+  devis: Devis; company: PortalData['company']; lang: DocLang; total: PortalData['doc']['totals']; taxIncluded: boolean; taxed: boolean; money: (n: number) => string;
+}) {
+  const L = (fr: string, en: string) => (lang === 'en' ? en : fr);
+  const Section = ({ title, items, extra }: { title: string; items: string[]; extra?: string }) => {
+    const list = devisItems(items);
+    if (!title.trim() && !list.length) return null;
+    return (
+      <div className="pd-sec">
+        {title.trim() && <h3>{title}</h3>}
+        <ul>{list.map((x, i) => <li key={i}>{x}</li>)}</ul>
+        {extra && <div className="pd-total">{extra}</div>}
+      </div>
+    );
+  };
+  return (
+    <div className="portal-devis">
+      <h2>{devisTitle(company.name, devis)}</h2>
+      {devis.sections.map((sec, i) => <Section key={i} title={sec.title} items={sec.items} extra={sectionTotalText(sec)} />)}
+      <div className="pd-price">
+        <div>
+          <small>{devis.priceLabel || L('Prix forfaitaire proposé', 'Proposed flat price')}</small>
+          {(taxIncluded || taxed) && <span>{taxIncluded ? L('taxes incluses', 'taxes included') : L('plus taxes', 'plus taxes')}</span>}
+        </div>
+        <b>{money(taxIncluded || !taxed ? total.total : total.subtotal)}</b>
+      </div>
+      {taxed && !taxIncluded && <div className="small muted">{L('Total avec les taxes', 'Total with taxes')}: <b>{money(total.total)}</b></div>}
+      {devis.priceNote.trim() && <p className="pd-note">{devis.priceNote}</p>}
+      <Section title="Conditions" items={devis.conditions} />
+      {devis.closing.trim() && <p>{devis.closing}</p>}
+      <div className="pd-sign">
+        <b>{company.owner}</b>
+        <span>{company.name}</span>
+        {company.tagline && <span className="muted">{company.tagline}</span>}
+        {company.email && <span>{company.email}</span>}
+        {company.website && <span>{company.website}</span>}
+      </div>
     </div>
   );
 }

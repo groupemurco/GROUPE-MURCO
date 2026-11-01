@@ -9,7 +9,8 @@ import { emptyLine, LineItems } from '../components/LineItems';
 import { Modal } from '../components/Modal';
 import { SendEmailModal } from '../components/SendEmailModal';
 import { errMsg, useConfirm, useToast } from '../components/Toast';
-import { db, getSettings, takeNextNumber, type Client, type Doc, type DocStatus, type DocType } from '../lib/db';
+import { db, getSettings, saveSettings, takeNextNumber, type Client, type Doc, type DocStatus, type DocType } from '../lib/db';
+import { DevisEditor, devisPriceItems, starterDevis } from '../components/DevisEditor';
 import { directionsLink, embedDirectionsUrl } from '../lib/geo';
 import { useSettings } from '../lib/hooks';
 import { docFileName } from '../lib/pdf';
@@ -28,9 +29,11 @@ import { celebrate } from '../lib/feel';
 import { NumInput } from '../components/NumInput';
 import { PdfView } from '../components/PdfView';
 
-function newDoc(type: DocType, clientId: number, s: Awaited<ReturnType<typeof getSettings>>): Doc {
+function newDoc(type: DocType, clientId: number, s: Awaited<ReturnType<typeof getSettings>>, format?: string | null): Doc {
   const date = todayISO();
   const now = new Date().toISOString();
+  // Soumission en devis détaillé (le dernier format utilisé, ou ?format=devis)
+  const devis = type === 'quote' && (format ?? s.quoteFormat) === 'devis' ? starterDevis(s) : undefined;
   return {
     type,
     number: '',
@@ -40,7 +43,8 @@ function newDoc(type: DocType, clientId: number, s: Awaited<ReturnType<typeof ge
     jobDate: type === 'invoice' ? date : '',
     jobAddress: '',
     title: '',
-    items: [emptyLine()],
+    items: devis ? devisPriceItems(devis, 0) : [emptyLine()],
+    ...(devis ? { devis, taxIncluded: true } : {}),
     applyTps: s.chargeTaxes,
     applyTvq: s.chargeTaxes,
     notes: type === 'invoice' ? s.invoiceNotes : s.quoteNotes,
@@ -101,7 +105,7 @@ export default function DocEditor() {
       if (isNew) {
         const st = await getSettings();
         const type = (params.get('type') as DocType) || 'invoice';
-        setDoc({ ...newDoc(type, Number(params.get('client')) || 0, st), projectId: Number(params.get('project')) || undefined });
+        setDoc({ ...newDoc(type, Number(params.get('client')) || 0, st, params.get('format')), projectId: Number(params.get('project')) || undefined });
         setSavedAddress('');
         setDirty(false);
         setLoadedFor(`${id}|${params.toString()}`);
@@ -257,9 +261,11 @@ export default function DocEditor() {
       title: q.title,
       jobAddress: q.jobAddress,
       jobGeo: q.jobGeo,
-      items: q.items.map((it) => ({ ...it })),
+      // Devis: la ligne forfaitaire renvoie à la soumission (le texte détaillé reste sur la soumission)
+      items: q.items.map((it) => ({ ...it, description: q.devis ? `${it.description} — selon la soumission ${q.number}` : it.description })),
       applyTps: q.applyTps,
       applyTvq: q.applyTvq,
+      taxIncluded: q.taxIncluded,
       discount: q.discount,
       sourceQuoteId: q.id,
       // La job déjà planifiée à l'agenda suit la facture
@@ -283,7 +289,7 @@ export default function DocEditor() {
 
   const duplicate = async () => {
     const st = await getSettings();
-    const copy: Doc = { ...newDoc(doc.type, doc.clientId, st), title: doc.title, jobAddress: doc.jobAddress, items: doc.items.map((i) => ({ ...i })), applyTps: doc.applyTps, applyTvq: doc.applyTvq, discount: doc.discount, notes: doc.notes };
+    const copy: Doc = { ...newDoc(doc.type, doc.clientId, st, 'lignes'), title: doc.title, jobAddress: doc.jobAddress, items: doc.items.map((i) => ({ ...i })), applyTps: doc.applyTps, applyTvq: doc.applyTvq, taxIncluded: doc.taxIncluded, discount: doc.discount, notes: doc.notes, devis: doc.devis && structuredClone(doc.devis) };
     copy.number = await takeNextNumber(copy.type);
     const nid = await db.docs.add(copy);
     notify(`Copie ${copy.number} créée`);
@@ -311,6 +317,21 @@ export default function DocEditor() {
     } catch (e) {
       notify(errMsg(e), 'err');
     }
+  };
+
+  /** Soumission en lignes de prix ou en devis détaillé (le choix devient le format par défaut). */
+  const setFormat = async (format: 'lignes' | 'devis') => {
+    if ((format === 'devis') === !!doc.devis) return;
+    if (format === 'devis') {
+      const devis = starterDevis(s);
+      // Même montant pour le client: taxes incluses → le prix forfaitaire est l'ancien total (avant rabais)
+      const inc = doc.taxIncluded ?? true;
+      upd({ devis, items: devisPriceItems(devis, inc ? round2(tot.total + tot.discount) : tot.lines), taxIncluded: inc, title: doc.title || devis.heading.replace(/^soumission\s+(de\s+|d[’']|pour\s+)?/i, '').replace(/^./, (c) => c.toUpperCase()) });
+    } else {
+      if (!(await ask({ title: 'Revenir aux lignes de prix?', message: 'Le texte du devis sera retiré. Le prix reste, sur une ligne.', confirm: 'Revenir aux lignes' }))) return;
+      upd({ devis: undefined });
+    }
+    void saveSettings({ quoteFormat: format });
   };
 
   const emailBody = () => {
@@ -393,11 +414,21 @@ export default function DocEditor() {
       </div>
 
       <div className="card">
-        <h2>Détails</h2>
-        <LineItems items={doc.items} services={services} onChange={(items) => upd({ items })} lang={L} />
+        <div className="card-head doc-format-head">
+          <h2>{doc.devis ? 'Devis' : 'Détails'}</h2>
+          {!isInvoice && (
+            <div className="seg doc-format" role="tablist" aria-label="Format de la soumission">
+              <button type="button" role="tab" aria-selected={!doc.devis} className={doc.devis ? '' : 'on'} onClick={() => void setFormat('lignes')}>Lignes de prix</button>
+              <button type="button" role="tab" aria-selected={!!doc.devis} className={doc.devis ? 'on' : ''} onClick={() => void setFormat('devis')}>Devis détaillé</button>
+            </div>
+          )}
+        </div>
+        {doc.devis
+          ? <DevisEditor doc={doc} onChange={upd} />
+          : <LineItems items={doc.items} services={services} onChange={(items) => upd({ items })} lang={L} />}
         <div className="grid two" style={{ marginTop: 16, alignItems: 'start' }}>
           <details className="doc-extras" open={!isMobile || !!doc.discount || !!doc.deposit || !doc.applyTps !== !s.chargeTaxes}>
-          <summary className="hide-desktop">Rabais, dépôt et taxes <small>{[doc.discount ? `rabais ${money(doc.discount)}` : '', doc.deposit ? `dépôt ${money(doc.deposit)}` : '', doc.applyTps || doc.applyTvq ? 'taxes incluses' : 'sans taxes'].filter(Boolean).join(' · ')}</small></summary>
+          <summary className="hide-desktop">Rabais, dépôt et taxes <small>{[doc.discount ? `rabais ${money(doc.discount)}` : '', doc.deposit ? `dépôt ${money(doc.deposit)}` : '', doc.applyTps || doc.applyTvq ? (doc.taxIncluded ? 'taxes comprises dans le prix' : 'taxes en plus') : 'sans taxes'].filter(Boolean).join(' · ')}</small></summary>
           <div className="form-grid">
             <label className="field">Rabais ($, avant taxes)<NumInput value={doc.discount} placeholder="0" onChange={(n) => upd({ discount: n })} /></label>
             <label className="field">Dépôt reçu ($)<NumInput value={doc.deposit} placeholder="0" onChange={(n) => upd({ deposit: n })} /></label>
@@ -410,24 +441,25 @@ export default function DocEditor() {
             )}
             <label className="check"><input type="checkbox" checked={doc.applyTps} onChange={(e) => upd({ applyTps: e.target.checked })} /> TPS {s.tpsRate} %</label>
             <label className="check"><input type="checkbox" checked={doc.applyTvq} onChange={(e) => upd({ applyTvq: e.target.checked })} /> TVQ {s.tvqRate} %</label>
+            {!doc.devis && (doc.applyTps || doc.applyTvq) && <label className="check full"><input type="checkbox" checked={!!doc.taxIncluded} onChange={(e) => upd({ taxIncluded: e.target.checked })} /> Prix taxes incluses (le total = les prix entrés)</label>}
           </div>
           </details>
           <div className="totals">
             {tot.discount > 0 && <div><span>Sous-total</span><span>{money(tot.lines)}</span></div>}
             {tot.discount > 0 && <div><span>Rabais</span><span>−{money(tot.discount)}</span></div>}
-            {(tot.discount > 0 || doc.applyTps || doc.applyTvq) && <div><span>{tot.discount > 0 ? 'Après rabais' : 'Sous-total'}</span><span>{money(tot.subtotal)}</span></div>}
-            {doc.applyTps && <div><span>TPS</span><span>{money(tot.tps)}</span></div>}
-            {doc.applyTvq && <div><span>TVQ</span><span>{money(tot.tvq)}</span></div>}
-            <div className="grand"><span>Total</span><span>{money(tot.total)}</span></div>
+            {(tot.discount > 0 || doc.applyTps || doc.applyTvq) && <div><span>{tot.discount > 0 ? 'Après rabais' : 'Sous-total'}{doc.taxIncluded && (doc.applyTps || doc.applyTvq) ? ' (sans taxes)' : ''}</span><span>{money(tot.subtotal)}</span></div>}
+            {doc.applyTps && <div><span>TPS{doc.taxIncluded ? ' incluse' : ''}</span><span>{money(tot.tps)}</span></div>}
+            {doc.applyTvq && <div><span>TVQ{doc.taxIncluded ? ' incluse' : ''}</span><span>{money(tot.tvq)}</span></div>}
+            <div className="grand"><span>Total{doc.taxIncluded ? ' (taxes incluses)' : ''}</span><span>{money(tot.total)}</span></div>
             {tot.deposit > 0 && <div><span>Dépôt reçu</span><span>−{money(tot.deposit)}</span></div>}
             {tot.paid - tot.deposit > 0 && <div><span>Paiements reçus</span><span>−{money(tot.paid - tot.deposit)}</span></div>}
             {tot.paid > 0 && <div className="grand"><span>Solde à payer</span><span>{money(tot.balance)}</span></div>}
           </div>
         </div>
-        <details className="doc-extras" open={!isMobile}>
+        {!doc.devis && <details className="doc-extras" open={!isMobile}>
           <summary className="hide-desktop">Notes sur le PDF {doc.notes.trim() ? <small>{doc.notes.trim().slice(0, 40)}</small> : null}</summary>
           <label className="field" style={{ marginTop: 12 }}>Notes (apparaissent sur le PDF)<textarea value={doc.notes} onChange={(e) => upd({ notes: e.target.value })} /></label>
-        </details>
+        </details>}
       </div>
 
       <details className="card more-opts" open={moreOpen} onToggle={(e) => setMoreOpen((e.target as HTMLDetailsElement).open)}>
@@ -780,6 +812,7 @@ function ReadySheet({ doc, blob, saved, kind, clientName, phone, client, cardPay
   const [editClient, setEditClient] = useState(false);
   const isQuote = doc.type === 'quote';
   const lines = doc.items.filter((it) => it.description.trim() || it.code || it.unitPrice).length;
+  const what = doc.devis ? doc.devis.heading || 'Devis détaillé' : `${lines} ligne${lines > 1 ? 's' : ''}`;
   const address = doc.jobAddress || client?.address || '';
   const missing = [!client?.email && 'courriel', !client?.phone && 'cellulaire'].filter(Boolean) as string[];
   return (
@@ -801,7 +834,7 @@ function ReadySheet({ doc, blob, saved, kind, clientName, phone, client, cardPay
       <div className="send-sum">
         <div className="send-sum-title">Résumé {isQuote ? 'de la soumission' : 'de la facture'}</div>
         {address && <div><span>Adresse</span><b>{address}</b></div>}
-        <div><span>Services</span><b>{lines} ligne{lines > 1 ? 's' : ''}</b></div>
+        <div><span>{doc.devis ? 'Devis' : 'Services'}</span><b>{what}</b></div>
         {doc.deposit ? <div><span>Dépôt reçu</span><b>{money(doc.deposit)}</b></div> : null}
         <div className="tot"><span>{total.balance > 0 && total.balance < total.total ? 'Solde' : 'Total'}</span><b>{money(total.balance > 0 && total.balance < total.total ? total.balance : total.total)}</b></div>
         <div className="send-feats">

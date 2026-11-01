@@ -15,6 +15,7 @@ export const D = {
     balanceDue: 'SOLDE À PAYER', balance: 'SOLDE', gst: 'TPS', qst: 'TVQ', paymentMethods: 'Modes de paiement',
     acceptedBy: 'Acceptée en ligne par', clientSignature: 'Signature du client (acceptation)', photos: 'Photos des travaux',
     rbq: 'Licence RBQ', page: 'Page',
+    taxesIncluded: 'taxes incluses', plusTaxes: 'plus taxes', totalTaxIncl: 'TOTAL (taxes incluses)', gstIncl: 'TPS incluse', qstIncl: 'TVQ incluse',
     kinds: { avant: 'Avant', apres: 'Après', job: 'Travaux', paiement: 'Paiement', autre: 'Autre' } as Record<string, string>,
   },
   en: {
@@ -26,6 +27,7 @@ export const D = {
     balanceDue: 'BALANCE DUE', balance: 'BALANCE', gst: 'GST', qst: 'QST', paymentMethods: 'Payment methods',
     acceptedBy: 'Accepted online by', clientSignature: 'Client signature (acceptance)', photos: 'Job photos',
     rbq: 'RBQ licence', page: 'Page',
+    taxesIncluded: 'taxes included', plusTaxes: 'plus taxes', totalTaxIncl: 'TOTAL (taxes included)', gstIncl: 'GST included', qstIncl: 'QST included',
     kinds: { avant: 'Before', apres: 'After', job: 'Work', paiement: 'Payment', autre: 'Other' } as Record<string, string>,
   },
 };
