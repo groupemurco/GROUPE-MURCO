@@ -7,8 +7,7 @@ import { PageHero, Ring } from '../components/PageHero';
 import { Onboarding } from '../components/Onboarding';
 import { RelanceModal } from '../components/RelanceModal';
 import {
-  AlertTriangle, Bell, Mic, CalendarDays, CalendarPlus, Camera, Car, CircleCheck, ClipboardList, Clock, Eye, FileText, Inbox, LayoutGrid, MapPin, Phone, Plus, Search, Star, Target, TrendingDown, TrendingUp, Zap,
-} from 'lucide-react';
+  AlertTriangle, Bell, Mic, CalendarDays, CalendarPlus, Camera, Car, CircleCheck, ClipboardList, Clock, Eye, FileText, Inbox, LayoutGrid, MapPin, Phone, Plus, Search, Star, Target, TrendingDown, TrendingUp, Zap, ScrollText } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { db, saveSettings, type Client, type Doc } from '../lib/db';
@@ -128,7 +127,8 @@ export default function Dashboard({ onSearch }: { onSearch?: () => void }) {
           <>
             <button className="agh-btn hide-mobile" onClick={onSearch}><Search size={16} /> Rechercher</button>
             <button className="agh-btn hide-mobile" onClick={() => nav('/dicter')}><Mic size={16} /> Assistant</button>
-            <button className="agh-btn hide-mobile" onClick={() => nav('/doc/new?type=quote')}><ClipboardList size={16} /> Soumission</button>
+            <button className="agh-btn hide-mobile" onClick={() => nav('/doc/new?type=quote&format=lignes')}><ClipboardList size={16} /> Soumission</button>
+            <button className="agh-btn hide-mobile" onClick={() => nav('/doc/new?type=quote&format=devis')}><ScrollText size={16} /> Devis</button>
             <button className="agh-btn hide-mobile" onClick={() => nav('/depenses/new')}><Camera size={16} /> Reçu</button>
             <button className="agh-btn icon corner" onClick={() => setTilesOpen(true)} aria-label="Choisir les tuiles" title="Choisir ce qui s’affiche"><LayoutGrid size={17} /></button>
             <button className="agh-btn solid hide-mobile" onClick={() => nav('/express')}><Zap size={16} /> Facture express</button>
@@ -157,7 +157,8 @@ export default function Dashboard({ onSearch }: { onSearch?: () => void }) {
 
       <div className="home-actions">
         <button className="ha-main" onClick={() => nav('/express')}><Zap size={28} /> Nouvelle facture</button>
-        <button onClick={() => nav('/doc/new?type=quote')}><ClipboardList size={28} /> Nouvelle soumission</button>
+        <button onClick={() => nav('/doc/new?type=quote&format=lignes')}><ClipboardList size={28} /> Nouvelle soumission</button>
+        <button onClick={() => nav('/doc/new?type=quote&format=devis')}><ScrollText size={28} /> Devis détaillé</button>
         <button onClick={() => nav('/job/new')}><CalendarPlus size={28} /> Planifier une job</button>
         <button onClick={() => nav('/dicter')}><Mic size={28} /> Parler à l’assistant</button>
       </div>

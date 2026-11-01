@@ -1615,8 +1615,8 @@ button.agh-ring:hover .fg { stroke: var(--amber-ink); }
 .home-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 0 16px; }
 .home-actions button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 96px; padding: 14px 8px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 1rem; font-weight: 700; line-height: 1.15; text-align: center; cursor: pointer; box-shadow: var(--shadow); transition: transform 0.12s ease, box-shadow 0.15s; }
 .home-actions button:active { transform: scale(0.97); }
-.home-actions .ha-main { background: var(--amber); border-color: var(--amber); color: var(--on-amber); }
-@media (min-width: 861px) { .home-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); } .home-actions button { min-height: 84px; flex-direction: row; gap: 10px; font-size: 1.02rem; } }
+.home-actions .ha-main { background: var(--amber); border-color: var(--amber); color: var(--on-amber); grid-column: 1 / -1; min-height: 76px; flex-direction: row; }
+@media (min-width: 861px) { .home-actions { grid-template-columns: repeat(5, minmax(0, 1fr)); } .home-actions .ha-main { grid-column: auto; } .home-actions button { min-height: 84px; flex-direction: row; gap: 10px; font-size: 1.02rem; } }
 .followups .fu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .followups .fu-row:last-child { border-bottom: 0; }
 
