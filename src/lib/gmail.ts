@@ -238,6 +238,31 @@ function decodeEntities(s: string): string {
   return el.value;
 }
 
+/** Texte d'un courriel (pour que l'assistant en fasse un devis): en-têtes utiles + corps en texte. */
+export async function getMailText(id: string): Promise<string> {
+  const msg = await api<{ payload: GmailPart }>(`/messages/${id}?format=full`);
+  const h = (n: string) => msg.payload.headers?.find((x) => x.name.toLowerCase() === n)?.value ?? '';
+  const decode = (data: string) => {
+    const bin = atob(data.replace(/-/g, '+').replace(/_/g, '/'));
+    return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+  };
+  const find = (p: GmailPart | undefined, type: string): string => {
+    if (!p) return '';
+    if (p.mimeType === type && p.body?.data && !p.filename) return decode(p.body.data);
+    for (const c of p.parts ?? []) {
+      const t = find(c, type);
+      if (t) return t;
+    }
+    return '';
+  };
+  let body = find(msg.payload, 'text/plain');
+  if (!body) {
+    const html = find(msg.payload, 'text/html');
+    body = html ? new DOMParser().parseFromString(html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n'), 'text/html').body.textContent ?? '' : '';
+  }
+  return [`De : ${h('from')}`, `Objet : ${h('subject')}`, `Date : ${h('date')}`, '', body.replace(/\n{3,}/g, '\n\n').trim()].join('\n');
+}
+
 export async function getAttachment(messageId: string, attachmentId: string, mimeType: string): Promise<Blob> {
   const r = await api<{ data: string }>(`/messages/${messageId}/attachments/${attachmentId}`);
   const b64 = r.data.replace(/-/g, '+').replace(/_/g, '/');

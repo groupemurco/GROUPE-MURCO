@@ -271,7 +271,7 @@ function PortalDevis({ devis, company, lang, total, taxIncluded, taxed, money }:
   const L = (fr: string, en: string) => (lang === 'en' ? en : fr);
   const Section = ({ title, items, extra }: { title: string; items: string[]; extra?: string }) => {
     const list = devisItems(items);
-    if (!title.trim() && !list.length) return null;
+    if (!list.length) return null;
     return (
       <div className="pd-sec">
         {title.trim() && <h3>{title}</h3>}

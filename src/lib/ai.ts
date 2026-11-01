@@ -3,7 +3,7 @@
 // rien n'est créé sans que l'utilisateur confirme dans l'app.
 import { getAI, getGenerativeModel, VertexAIBackend, Schema, type ChatSession, type FunctionCall, type FunctionDeclaration, type Part } from 'firebase/ai';
 import type { Intent, IntentKind } from './assistant';
-import { devisFromJson, type Devis } from './devis';
+import { devisFromJson, type Devis, type DevisDraft } from './devis';
 import { findClients } from './fuzzy';
 import { firebaseApp, getFirebaseConfig } from './sync';
 
@@ -309,33 +309,49 @@ Ce qu’il veut dire: ${opts.intent}
   throw last;
 }
 
-/** Rédige un devis détaillé (sections à puces, conditions) à partir de quelques mots, dans le style du modèle. */
-export async function aiDevis(opts: { company: string; trades: string; description: string; base: Devis; model?: string }): Promise<ReturnType<typeof devisFromJson>> {
+/**
+ * Devis à partir d'un courriel du client ou de quelques mots: l'IA écrit le devis (dans le style du modèle),
+ * repère le client (nom, courriel, téléphone, adresse) et note ce qui manque pour bien chiffrer.
+ */
+export async function aiDevis(opts: { company: string; owner: string; trades: string; text: string; style: Devis; current?: Devis; clientKnown?: string; model?: string }): Promise<DevisDraft> {
   const app = firebaseApp();
   if (!app) throw new Error('Firebase n’est pas configuré');
   const ai = getAI(app, { backend: new VertexAIBackend('global') });
-  const example = {
-    titre: opts.base.heading,
-    sections: opts.base.sections.map((s) => ({ titre: s.title, points: s.items, compter: s.countLabel ?? '' })),
-    note_prix: opts.base.priceNote,
-    conditions: opts.base.conditions,
-    mot_de_la_fin: opts.base.closing,
-  };
-  const prompt = `Tu rédiges un devis (soumission détaillée) pour ${opts.company || 'une entreprise de services'} (${opts.trades || 'entrepreneur'}), au Québec.
-Français du Québec, ton professionnel, vouvoiement. Garde exactement la structure et le style de l’exemple; adapte le contenu à la description.
-Règles: une section « visée » avec les éléments chiffrés (ex.: « 5 fenêtres au sous-sol »), puis « Travaux inclus » (phrases terminées par « ; », la dernière par « . »).
-« compter » = le mot pour le total de la section (ex.: « ouvertures »), sinon vide. N’invente pas de prix: « prix » seulement s’il est dit (nombre, sans $).
-« taxes_incluses »: true si on dit taxes incluses, false si on dit plus taxes, sinon absent. « adresse »: l’adresse des travaux si elle est dite.
-Exemple (format JSON à respecter):
-${JSON.stringify(example)}
-Description de la job: ${opts.description}
+  const asJson = (d: Devis) => ({
+    titre: d.heading,
+    sections: d.sections.map((x) => ({ titre: x.title, points: x.items, compter: x.countLabel ?? '' })),
+    note_prix: d.priceNote,
+    conditions: d.conditions,
+    mot_de_la_fin: d.closing,
+  });
+  const prompt = `Tu prépares un devis (soumission détaillée) pour ${opts.company || 'une entreprise de services'} (${opts.trades || 'entrepreneur'}), au Québec, signé par ${opts.owner || 'le patron'}.
+Le texte reçu est soit un courriel ou un message d’un client (demande de soumission), soit une consigne de l’entrepreneur.
+${opts.current ? `Devis actuel: ${JSON.stringify(asJson(opts.current))}
+Si le texte demande un changement (ajouter, enlever, changer le prix…), applique-le au devis actuel et garde le reste. Sinon, écris un nouveau devis.
+` : ''}Écris le devis selon ce qui est demandé dans le texte, peu importe le type de travaux. N’invente pas d’éléments qui ne sont pas demandés.
+Style à imiter (structure et ton seulement, pas le contenu): ${JSON.stringify(asJson(opts.style))}
+Règles:
+- Français du Québec, ton professionnel, vouvoiement.
+- « titre »: « Soumission de … » selon les travaux.
+- Première section: ce qui est visé (« Ouvertures visées », « Pièces visées », « Travaux visés »…), un élément par point, chiffré quand le nombre est connu (ex.: « 5 fenêtres au sous-sol »). « compter »: le mot pour le total (ex.: « ouvertures ») seulement si les éléments se comptent, sinon vide.
+- Deuxième section « Travaux inclus »: les étapes, phrases terminées par « ; » et la dernière par « . ».
+- « conditions »: 2 à 4 conditions utiles pour ces travaux. « note_prix »: une phrase utile sous le prix, ou vide.
+- « prix »: seulement si un prix est donné (nombre, sans $). « taxes_incluses »: true si « taxes incluses », false si « plus taxes », sinon absent.
+- « client »: les coordonnées du client trouvées dans le texte (nom, contact, courriel, telephone, adresse); jamais celles de ${opts.company || 'l’entreprise'}.${opts.clientKnown ? ` Le client est déjà choisi: ${opts.clientKnown}.` : ''}
+- « adresse »: l’adresse des travaux si elle est donnée. « courriel_client »: true si le texte est un message écrit par le client.
+- « questions »: ce qu’il faudrait demander au client pour bien chiffrer (0 à 3 courtes questions).
+Format JSON: {"titre":"","sections":[{"titre":"","points":[""],"compter":""}],"note_prix":"","conditions":[""],"mot_de_la_fin":"","prix":0,"taxes_incluses":true,"adresse":"","client":{"nom":"","contact":"","courriel":"","telephone":"","adresse":""},"courriel_client":false,"questions":[""]}
+Texte:
+"""
+${opts.text.slice(0, 12000)}
+"""
 Réponds uniquement avec le JSON.`;
   let last: unknown;
   for (const m of opts.model ? [opts.model, ...MODELS] : MODELS) {
     try {
-      const r = await getGenerativeModel(ai, { model: m, generationConfig: { temperature: 0.3, responseMimeType: 'application/json' } }, { timeout: AI_TIMEOUT_MS }).generateContent(prompt);
+      const r = await getGenerativeModel(ai, { model: m, generationConfig: { temperature: 0.3, responseMimeType: 'application/json' } }, { timeout: AI_TIMEOUT_MS * 2 }).generateContent(prompt);
       const txt = r.response.text().trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
-      return devisFromJson(JSON.parse(txt), opts.base);
+      return devisFromJson(JSON.parse(txt), opts.current ?? opts.style);
     } catch (e) {
       last = e;
       if (e instanceof SyntaxError) continue;

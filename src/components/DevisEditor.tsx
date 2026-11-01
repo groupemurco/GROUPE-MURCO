@@ -1,8 +1,12 @@
-import { ArrowDown, ArrowUp, BookmarkPlus, Plus, Sparkles, Trash2 } from 'lucide-react';
-import { useState } from 'react';
-import { saveSettings, type Doc, type LineItem } from '../lib/db';
-import { DEVIS_TEMPLATES, devisFromTemplate, devisFromText, devisLineDescription, devisTitle, sectionTotalText, templateKeyFor, type Devis, type DevisSection } from '../lib/devis';
+import { ArrowDown, ArrowUp, BookmarkPlus, CircleHelp, Mic, Plus, Sparkles, Square, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { db, saveSettings, type Doc, type LineItem, type Settings } from '../lib/db';
+import {
+  blankDevis, contactFromText, DEVIS_TEMPLATES, devisFromTemplate, devisFromText, devisLineDescription, devisTitle, isDevisEmpty, sectionTotalText, templateKeyFor,
+  type Devis, type DevisDraft, type DevisSection,
+} from '../lib/devis';
 import { useSettings } from '../lib/hooks';
+import { listen, speechSupported, type Listening } from '../lib/speech';
 import { activeTrades } from '../lib/orders';
 import { tradeOf } from '../lib/templates';
 import { docTotals, lineAmount, money, round2 } from '../lib/utils';
@@ -15,10 +19,29 @@ export function devisPriceItems(d: Devis, price: number): LineItem[] {
   return [{ code: '', description: devisLineDescription(d), unit: 'forfait', quantity: 1, unitPrice: round2(price) }];
 }
 
-/** Devis de départ pour l'entreprise (selon son métier). */
-export function starterDevis(s: Parameters<typeof activeTrades>[0] & { devisTemplates?: { name: string; devis: Devis }[] }): Devis {
-  return devisFromTemplate(templateKeyFor(activeTrades(s)), s.devisTemplates);
+/** Devis neuf: vide (l'assistant l'écrit selon la demande du client). */
+export const starterDevis = () => blankDevis();
+
+/** Modèle dont l'assistant imite le style: le dernier enregistré par l'entrepreneur, sinon celui de son métier. */
+function styleDevis(s: Settings): Devis {
+  const own = s.devisTemplates ?? [];
+  return own.length ? own[own.length - 1].devis : devisFromTemplate(templateKeyFor(activeTrades(s)));
 }
+
+/** Courriel envoyé depuis la page Gmail (« Faire un devis »), repris une seule fois par la boîte de l'assistant. */
+export const DEVIS_MAIL_KEY = 'murco.devisMail';
+function takeMail(): string {
+  try {
+    const t = sessionStorage.getItem(DEVIS_MAIL_KEY) ?? '';
+    sessionStorage.removeItem(DEVIS_MAIL_KEY);
+    return t;
+  } catch {
+    return '';
+  }
+}
+
+const norm = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const digits = (x?: string) => (x ?? '').replace(/\D/g, '').slice(-10);
 
 const docPrice = (doc: Pick<Doc, 'items'>) => round2(doc.items.reduce((a, it) => a + lineAmount(it), 0));
 
@@ -31,8 +54,50 @@ export function DevisEditor({ doc, onChange }: { doc: Doc; onChange: (patch: Par
   const price = docPrice(doc);
   const tot = docTotals(doc, s);
   const [saving, setSaving] = useState<string | null>(null);
-  const [aiOpen, setAiOpen] = useState(false);
+  const [mail] = useState(takeMail);
+  const [aiOpen, setAiOpen] = useState(() => !!mail || isDevisEmpty(d));
+  const [questions, setQuestions] = useState<string[]>([]);
   const saved = s.devisTemplates ?? [];
+
+  /** Résultat de l'assistant: devis, prix, adresse; le client est retrouvé (courriel, cell, nom) ou créé. */
+  const applyDraft = async (r: DevisDraft, text: string, failed?: string) => {
+    const patch: Partial<Doc> = { devis: r.devis, items: devisPriceItems(r.devis, r.price ?? price) };
+    if (r.taxIncluded !== undefined) patch.taxIncluded = r.taxIncluded;
+    if (r.address && !doc.jobAddress) patch.jobAddress = r.address;
+    const what = r.devis.heading.replace(/^soumission\s+(de\s+|d[’']|pour\s+)?/i, '').trim();
+    if (!doc.title.trim() && what) patch.title = what.charAt(0).toUpperCase() + what.slice(1);
+    let clientId = doc.clientId;
+    let who = '';
+    const c = r.client;
+    if (!clientId && c && (c.name || c.email || c.phone)) {
+      const all = await db.clients.toArray();
+      const found = all.find((x) => c.email && x.email.toLowerCase() === c.email)
+        ?? all.find((x) => c.phone && digits(x.phone).length === 10 && digits(x.phone) === digits(c.phone))
+        ?? all.find((x) => c.name && norm(x.name) === norm(c.name));
+      if (found) {
+        clientId = found.id!;
+        // On complète la fiche avec ce qui manquait
+        const fill = { email: found.email || c.email || '', phone: found.phone || c.phone || '', address: found.address || c.address || '' };
+        if (fill.email !== found.email || fill.phone !== found.phone || fill.address !== found.address) await db.clients.update(clientId, fill);
+        who = `Client: ${found.name}.`;
+      } else {
+        const name = c.name || c.contact || c.email || 'Nouveau client';
+        clientId = await db.clients.add({ name, contact: c.contact ?? '', email: c.email ?? '', phone: c.phone ?? '', address: c.address || r.address || '', notes: '', createdAt: new Date().toISOString() });
+        who = `Nouveau client ajouté: ${name}.`;
+      }
+      patch.clientId = clientId;
+    } else if (!clientId) who = 'Choisis le client en haut.';
+    // Le courriel du client est gardé dans sa conversation
+    const body = text.trim().slice(0, 8000);
+    if (r.fromClient && clientId && !(await db.messages.where('clientId').equals(clientId).filter((m) => m.text === body).count())) {
+      await db.messages.add({ clientId, dir: 'in', channel: 'courriel', text: body, at: new Date().toISOString() });
+    }
+    onChange(patch);
+    setQuestions(r.questions ?? []);
+    if (failed) return notify(`${failed} ${who}`.trim(), 'err');
+    setAiOpen(false);
+    notify(`Devis écrit. ${who || 'Relis-le, mets ton prix, puis envoie.'}`);
+  };
 
   const set = (patch: Partial<Devis>) => {
     const next = { ...d, ...patch };
@@ -64,15 +129,24 @@ export function DevisEditor({ doc, onChange }: { doc: Doc; onChange: (patch: Par
 
   return (
     <div className="devis-ed">
+      {aiOpen && <DevisAi doc={doc} initial={mail} canClose={!isDevisEmpty(d)} onClose={() => setAiOpen(false)} onDone={applyDraft} />}
       <div className="dv-tools">
         <select className="dv-tpl" value="" onChange={(e) => void pickTemplate(e.target.value)} aria-label="Modèle de devis">
           <option value="">Partir d’un modèle…</option>
           {saved.length > 0 && <optgroup label="Mes modèles">{saved.map((x) => <option key={x.name} value={`perso:${x.name}`}>{x.name}</option>)}</optgroup>}
           <optgroup label="Modèles par métier">{DEVIS_TEMPLATES.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>
         </select>
-        <button type="button" className="btn small" onClick={() => setAiOpen(true)}><Sparkles size={15} /> Écrire avec l’assistant</button>
+        {!aiOpen && <button type="button" className="btn small accent" onClick={() => setAiOpen(true)}><Sparkles size={15} /> Assistant</button>}
         <button type="button" className="btn small" onClick={() => setSaving(d.heading.replace(/^soumission\s+(de\s+|d[’']|pour\s+)?/i, '').replace(/^./, (c) => c.toUpperCase()))}><BookmarkPlus size={15} /> Enregistrer comme modèle</button>
       </div>
+
+      {questions.length > 0 && (
+        <div className="dv-questions">
+          <CircleHelp size={18} />
+          <div><b>À demander au client</b><ul>{questions.map((q) => <li key={q}>{q}</li>)}</ul></div>
+          <button type="button" className="btn icon-btn small" onClick={() => setQuestions([])} aria-label="Fermer"><X size={15} /></button>
+        </div>
+      )}
 
       <label className="field">Titre du devis
         <input value={d.heading} placeholder="ex.: Soumission de calfeutrage" onChange={(e) => set({ heading: e.target.value })} />
@@ -151,48 +225,85 @@ export function DevisEditor({ doc, onChange }: { doc: Doc; onChange: (patch: Par
           </div>
         </Modal>
       )}
-      {aiOpen && <AiDevisModal doc={doc} onClose={() => setAiOpen(false)} onDone={(patch) => { onChange(patch); setAiOpen(false); }} />}
     </div>
   );
 }
 
-function AiDevisModal({ doc, onClose, onDone }: { doc: Doc; onClose: () => void; onDone: (patch: Partial<Doc>) => void }) {
+/** Boîte de l'assistant: on colle le courriel du client (ou on dit quoi faire) et il écrit le devis. */
+function DevisAi({ doc, initial, canClose, onClose, onDone }: { doc: Doc; initial: string; canClose: boolean; onClose: () => void; onDone: (r: DevisDraft, text: string, failed?: string) => Promise<void> }) {
   const s = useSettings();
   const notify = useToast();
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initial);
   const [busy, setBusy] = useState(false);
-  const base = doc.devis!;
+  const [hearing, setHearing] = useState(false);
+  const rec = useRef<Listening | null>(null);
+  const current = doc.devis && !isDevisEmpty(doc.devis) ? doc.devis : undefined;
+  useEffect(() => () => rec.current?.stop(), []);
+
+  const mic = () => {
+    if (rec.current) return rec.current.stop();
+    const before = text.trim();
+    rec.current = listen(
+      (t) => setText(before ? `${before} ${t}` : t),
+      (err, t) => {
+        rec.current = null;
+        setHearing(false);
+        if (t?.trim()) setText(before ? `${before} ${t.trim()}` : t.trim());
+        else if (err) notify(err, 'err');
+      },
+    );
+    if (rec.current) setHearing(true);
+    else notify('La dictée n’est pas disponible ici: écris ou colle le texte.', 'err');
+  };
+
   const go = async () => {
-    if (text.trim().length < 4) return notify('Décris la job en quelques mots.', 'err');
+    const t = text.trim();
+    if (t.length < 4) return notify('Colle le courriel du client ou dis ce qu’il faut faire.', 'err');
+    rec.current?.stop();
     setBusy(true);
-    let r: { devis: Devis; price?: number; taxIncluded?: boolean; address?: string };
+    let r: DevisDraft;
+    let failed: string | undefined;
     try {
       const { aiDevis } = await import('../lib/ai');
       const trades = activeTrades(s).map((k) => tradeOf(k)?.label).filter(Boolean).join(', ');
-      r = await aiDevis({ company: s.companyName, trades, description: text.trim(), base, model: s.aiModel || undefined });
+      const known = doc.clientId ? (await db.clients.get(doc.clientId))?.name : undefined;
+      r = await aiDevis({ company: s.companyName, owner: s.ownerName, trades, text: t, style: styleDevis(s), current, clientKnown: known, model: s.aiModel || undefined });
     } catch (e) {
-      // Sans l'IA: chaque morceau de la phrase devient un point, le prix et les taxes sont repérés
-      r = devisFromText(text, base);
-      notify(`Fait sans l’assistant (${errMsg(e).slice(0, 80)}). Vérifie le texte.`, 'err');
+      // Sans l'assistant: un courriel → on reprend au moins les coordonnées; une phrase → chaque morceau devient un point
+      const isMail = /@|\n.*\n/.test(t) && t.length > 120;
+      r = isMail
+        ? { devis: current ?? doc.devis ?? blankDevis(), client: contactFromText(t, { email: s.email, phone: s.phone }), fromClient: true }
+        : devisFromText(t, current ?? styleDevis(s));
+      const why = `L’assistant n’a pas répondu (${errMsg(e).slice(0, 70)}).`;
+      if (isMail) failed = `${why} J’ai repris les coordonnées du client: réessaie dans un moment ou écris le devis.`;
+      else notify(`${why} Fait sans lui: vérifie le texte.`, 'err');
     }
-    setBusy(false);
-    const price = r.price ?? docPrice(doc);
-    onDone({
-      devis: r.devis,
-      items: devisPriceItems(r.devis, price),
-      ...(r.taxIncluded !== undefined ? { taxIncluded: r.taxIncluded } : {}),
-      ...(r.address && !doc.jobAddress ? { jobAddress: r.address } : {}),
-    });
+    try {
+      await onDone(r, t, failed);
+    } catch (e) {
+      notify(errMsg(e), 'err');
+    } finally {
+      setBusy(false);
+    }
   };
+
   return (
-    <Modal title="Écrire le devis avec l’assistant" onClose={onClose}>
-      <p className="small muted" style={{ marginTop: 0 }}>Dis ce qui est à faire et le prix. L’assistant écrit le devis dans le style de ton modèle; tu pourras tout modifier.</p>
-      <textarea autoFocus rows={4} value={text} onChange={(e) => setText(e.target.value)}
-        placeholder="ex.: calfeutrage de 5 fenêtres au sous-sol, 8 au rez-de-chaussée, la porte d’entrée et la porte-patio, 1650 $ taxes incluses" />
-      <div className="row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
-        <button type="button" className="btn" onClick={onClose}>Annuler</button>
-        <button type="button" className="btn accent" disabled={busy} onClick={() => void go()}><Sparkles size={16} /> {busy ? 'Rédaction…' : 'Écrire le devis'}</button>
+    <div className="dv-ai">
+      <div className="dv-ai-head">
+        <Sparkles size={18} />
+        <b>{current ? 'Que faut-il changer?' : 'Colle le courriel du client ou dis ce qu’il faut faire'}</b>
+        {canClose && <button type="button" className="btn icon-btn small" onClick={onClose} aria-label="Fermer"><X size={15} /></button>}
       </div>
-    </Modal>
+      <textarea rows={initial ? 8 : 5} value={text} onChange={(e) => setText(e.target.value)} disabled={busy}
+        placeholder={current
+          ? 'ex.: ajoute la porte de garage, mets 1 850 $ taxes incluses'
+          : 'Colle ici le courriel reçu (avec le nom, le téléphone et l’adresse), ou écris: « calfeutrage de 12 fenêtres et la porte-patio, 1 650 $ taxes incluses »'} />
+      <div className="dv-ai-actions">
+        {speechSupported() && <button type="button" className={`btn ${hearing ? 'danger' : ''}`} onClick={mic} disabled={busy}>{hearing ? <><Square size={15} /> Arrêter</> : <><Mic size={16} /> Dicter</>}</button>}
+        <span className="spacer" />
+        <button type="button" className="btn accent" disabled={busy} onClick={() => void go()}><Sparkles size={16} /> {busy ? 'L’assistant écrit…' : current ? 'Modifier le devis' : 'Écrire le devis'}</button>
+      </div>
+      <div className="small muted">L’assistant trouve le client (ou l’ajoute), l’adresse et les travaux. Rien n’est envoyé: tu relis avant.</div>
+    </div>
   );
 }

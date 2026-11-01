@@ -33,7 +33,7 @@ function newDoc(type: DocType, clientId: number, s: Awaited<ReturnType<typeof ge
   const date = todayISO();
   const now = new Date().toISOString();
   // Soumission en devis détaillé (le dernier format utilisé, ou ?format=devis)
-  const devis = type === 'quote' && (format ?? s.quoteFormat) === 'devis' ? starterDevis(s) : undefined;
+  const devis = type === 'quote' && (format ?? s.quoteFormat) === 'devis' ? starterDevis() : undefined;
   return {
     type,
     number: '',
@@ -323,7 +323,7 @@ export default function DocEditor() {
   const setFormat = async (format: 'lignes' | 'devis') => {
     if ((format === 'devis') === !!doc.devis) return;
     if (format === 'devis') {
-      const devis = starterDevis(s);
+      const devis = starterDevis();
       // Même montant pour le client: taxes incluses → le prix forfaitaire est l'ancien total (avant rabais)
       const inc = doc.taxIncluded ?? true;
       upd({ devis, items: devisPriceItems(devis, inc ? round2(tot.total + tot.discount) : tot.lines), taxIncluded: inc, title: doc.title || devis.heading.replace(/^soumission\s+(de\s+|d[’']|pour\s+)?/i, '').replace(/^./, (c) => c.toUpperCase()) });
@@ -385,7 +385,12 @@ export default function DocEditor() {
       </div>
 
       {linked?.src && <div className="notice info">Créée à partir de la soumission <Link to={`/doc/${linked.src.id}`}>{linked.src.number}</Link>.</div>}
-      {doc.signature && <div className="notice ok">Acceptée en ligne par <strong>{doc.signature.name}</strong> le {new Date(doc.signature.at).toLocaleString('fr-CA')}{doc.type === 'quote' && !doc.convertedInvoiceId ? ' — crée la facture quand les travaux sont faits.' : ''}</div>}
+      {doc.signature && (
+        <div className="notice ok row">
+          <span>Acceptée en ligne par <strong>{doc.signature.name}</strong> le {new Date(doc.signature.at).toLocaleString('fr-CA')}{doc.type === 'quote' && !doc.convertedInvoiceId ? ' — crée la facture quand les travaux sont faits.' : ''}</span>
+          {doc.type === 'quote' && !doc.convertedInvoiceId && <button className="btn small accent" onClick={() => void convertToInvoice()}>Créer la facture</button>}
+        </div>
+      )}
       {doc.review && (
         <div className={`notice ${doc.review.stars >= 4 ? 'ok' : 'err'}`}>
           Avis du client: <strong>{'★'.repeat(doc.review.stars)}{'☆'.repeat(5 - doc.review.stars)}</strong>{doc.review.toGoogle ? ' — redirigé vers Google' : ''}{doc.review.comment ? ` — « ${doc.review.comment} »` : ''}
@@ -398,7 +403,7 @@ export default function DocEditor() {
         <div className="form-grid">
           <div className="field full">
             Client *
-            <ClientPicker value={doc.clientId} onChange={(id) => void db.clients.get(id).then((c) => setLangPatch(doc.lang ?? c?.lang ?? 'fr', { clientId: id }))} autoFocus={isNew && !doc.clientId} />
+            <ClientPicker value={doc.clientId} onChange={(id) => void db.clients.get(id).then((c) => setLangPatch(doc.lang ?? c?.lang ?? 'fr', { clientId: id }))} autoFocus={isNew && !doc.clientId && !doc.devis} />
           </div>
           <label className="field full">Description de la job (sert aussi de raison dans le journal de bord)
             <input value={doc.title} placeholder="ex.: Installation de céramique salle de bain" onChange={(e) => upd({ title: e.target.value })} />

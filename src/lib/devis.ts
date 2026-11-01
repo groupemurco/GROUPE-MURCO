@@ -83,7 +83,7 @@ export const DEVIS_TEMPLATES: { key: string; label: string; devis: Devis }[] = [
   {
     key: 'calfeutrage', label: 'Calfeutrage',
     devis: D('Soumission de calfeutrage', [
-      { title: 'Ouvertures visées', items: ['5 fenêtres au sous-sol', '8 fenêtres au rez-de-chaussée', '1 porte d’entrée', '1 porte-patio'], countLabel: 'ouvertures' },
+      { title: 'Ouvertures visées', items: [], countLabel: 'ouvertures' },
       { title: 'Travaux inclus', items: [
         'Retrait complet des anciens joints de calfeutrage sur les ouvertures visées;',
         'Nettoyage et préparation des surfaces afin de favoriser l’adhérence;',
@@ -100,7 +100,7 @@ export const DEVIS_TEMPLATES: { key: string; label: string; devis: Devis }[] = [
   {
     key: 'peinture', label: 'Peinture intérieure',
     devis: D('Soumission de peinture', [
-      { title: 'Pièces visées', items: ['Salon', 'Cuisine', '2 chambres', '1 corridor'], countLabel: 'pièces' },
+      { title: 'Pièces visées', items: [], countLabel: 'pièces' },
       { title: 'Travaux inclus', items: [
         'Protection des planchers, des meubles et des accessoires;',
         'Réparation des petites fissures et des trous de clous, sablage;',
@@ -118,7 +118,7 @@ export const DEVIS_TEMPLATES: { key: string; label: string; devis: Devis }[] = [
   {
     key: 'exterieur', label: 'Entretien extérieur',
     devis: D('Soumission d’entretien extérieur', [
-      { title: 'Travaux visés', items: ['Nettoyage complet des gouttières', '18 fenêtres (lavage extérieur)', 'Lavage à pression de l’entrée'] },
+      { title: 'Travaux visés', items: [] },
       { title: 'Travaux inclus', items: [
         'Retrait des feuilles et des débris dans les gouttières et vérification des descentes pluviales;',
         'Lavage des vitres, des cadres et des moustiquaires à l’extérieur;',
@@ -134,7 +134,7 @@ export const DEVIS_TEMPLATES: { key: string; label: string; devis: Devis }[] = [
   {
     key: 'deneigement', label: 'Déneigement (contrat de saison)',
     devis: D('Contrat de déneigement — saison 2026-2027', [
-      { title: 'Surfaces visées', items: ['Entrée asphaltée (2 voitures)', 'Trottoir avant', 'Marches de l’entrée principale'] },
+      { title: 'Surfaces visées', items: [] },
       { title: 'Services inclus', items: [
         'Déneigement à chaque chute de 5 cm et plus;',
         'Entrée dégagée avant 7 h les jours de semaine, autant que possible;',
@@ -150,7 +150,7 @@ export const DEVIS_TEMPLATES: { key: string; label: string; devis: Devis }[] = [
   {
     key: 'paysagement', label: 'Entretien de terrain',
     devis: D('Soumission d’entretien de terrain — saison 2026', [
-      { title: 'Services visés', items: ['Tonte hebdomadaire de la pelouse', 'Taille des haies (2 fois par saison)', 'Nettoyage du printemps et de l’automne'] },
+      { title: 'Services visés', items: [] },
       { title: 'Travaux inclus', items: [
         'Tonte, coupe des bordures et soufflage des surfaces dures;',
         'Ramassage et disposition des résidus de taille;',
@@ -164,7 +164,7 @@ export const DEVIS_TEMPLATES: { key: string; label: string; devis: Devis }[] = [
   {
     key: 'menage', label: 'Ménage',
     devis: D('Soumission de ménage', [
-      { title: 'Pièces visées', items: ['1 cuisine', '2 salles de bain', '3 chambres', '1 salon'], countLabel: 'pièces' },
+      { title: 'Pièces visées', items: [], countLabel: 'pièces' },
       { title: 'Travaux inclus', items: [
         'Époussetage de toutes les surfaces accessibles;',
         'Nettoyage et désinfection de la cuisine et des salles de bain;',
@@ -179,7 +179,7 @@ export const DEVIS_TEMPLATES: { key: string; label: string; devis: Devis }[] = [
   {
     key: 'toiture', label: 'Toiture',
     devis: D('Soumission de toiture', [
-      { title: 'Toiture visée', items: ['Versant avant et arrière (environ 18 carrés)', 'Pente moyenne, 1 cheminée, 2 évents'] },
+      { title: 'Toiture visée', items: [] },
       { title: 'Travaux inclus', items: [
         'Arrachage complet des bardeaux existants et disposition au conteneur;',
         'Inspection du pontage et remplacement des feuilles endommagées (jusqu’à 2 feuilles incluses);',
@@ -196,7 +196,7 @@ export const DEVIS_TEMPLATES: { key: string; label: string; devis: Devis }[] = [
   {
     key: 'general', label: 'Général (tous métiers)',
     devis: D('Soumission de travaux', [
-      { title: 'Travaux visés', items: ['Décris ici ce qui est visé (une ligne par élément)'] },
+      { title: 'Travaux visés', items: [] },
       { title: 'Travaux inclus', items: [
         'Préparation et protection des lieux;',
         'Réalisation des travaux selon les règles de l’art;',
@@ -218,6 +218,21 @@ export function templateKeyFor(trades: string[]): string {
   return 'general';
 }
 
+/** Devis vide: l'assistant (ou l'entrepreneur) le remplit selon la demande du client. */
+export function blankDevis(): Devis {
+  return {
+    heading: '',
+    sections: [{ title: 'Travaux visés', items: [] }, { title: 'Travaux inclus', items: [] }],
+    priceLabel: 'Prix forfaitaire proposé',
+    priceNote: '',
+    conditions: [],
+    closing: 'Merci de votre confiance. Au plaisir de réaliser vos travaux!',
+  };
+}
+
+/** Rien d'écrit encore (on offre alors l'assistant en premier). */
+export const isDevisEmpty = (d: Devis) => !d.heading.trim() && d.sections.every((s) => !devisItems(s.items).length) && !devisItems(d.conditions).length;
+
 const copy = (d: Devis): Devis => ({ ...d, sections: d.sections.map((s) => ({ ...s, items: [...s.items] })), conditions: [...d.conditions] });
 
 export function devisFromTemplate(key: string, saved: SavedDevis[] = []): Devis {
@@ -227,7 +242,25 @@ export function devisFromTemplate(key: string, saved: SavedDevis[] = []): Devis 
 }
 
 /** Réponse de l'IA (JSON) → devis propre, sans champs inventés. */
-export function devisFromJson(raw: unknown, fallback: Devis): { devis: Devis; price?: number; taxIncluded?: boolean; address?: string } {
+export interface DevisContact {
+  name?: string;
+  contact?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+}
+
+export interface DevisDraft {
+  devis: Devis;
+  price?: number;
+  taxIncluded?: boolean;
+  address?: string; // adresse des travaux
+  client?: DevisContact; // coordonnées trouvées dans le courriel
+  fromClient?: boolean; // le texte est un message du client (gardé dans sa conversation)
+  questions?: string[]; // ce qui manque pour bien chiffrer
+}
+
+export function devisFromJson(raw: unknown, fallback: Devis): DevisDraft {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const str = (v: unknown, d = '') => (typeof v === 'string' ? v.trim() : d);
   const list = (v: unknown) => (Array.isArray(v) ? v.map((x) => str(x)).filter(Boolean) : []);
@@ -236,6 +269,8 @@ export function devisFromJson(raw: unknown, fallback: Devis): { devis: Devis; pr
     .map((x) => ({ title: str(x.titre ?? x.title), items: list(x.points ?? x.items), countLabel: str(x.compter ?? x.countLabel) || undefined }))
     .filter((x) => x.title || x.items.length);
   const price = Number(o.prix ?? o.price);
+  const c = (o.client && typeof o.client === 'object' ? o.client : {}) as Record<string, unknown>;
+  const client: DevisContact = { name: str(c.nom) || undefined, contact: str(c.contact) || undefined, email: str(c.courriel).toLowerCase() || undefined, phone: str(c.telephone) || undefined, address: str(c.adresse) || undefined };
   return {
     devis: {
       heading: str(o.titre ?? o.heading, fallback.heading),
@@ -248,7 +283,19 @@ export function devisFromJson(raw: unknown, fallback: Devis): { devis: Devis; pr
     price: Number.isFinite(price) && price > 0 ? r2(price) : undefined,
     taxIncluded: typeof o.taxes_incluses === 'boolean' ? o.taxes_incluses : undefined,
     address: str(o.adresse) || undefined,
+    client: Object.values(client).some(Boolean) ? client : undefined,
+    fromClient: o.courriel_client === true,
+    questions: list(o.questions),
   };
+}
+
+/** Sans IA: courriel et téléphone repérés dans le texte (sauf les tiens), et le nom de l'expéditeur « De : Nom <courriel> ». */
+export function contactFromText(text: string, own: { email?: string; phone?: string } = {}): DevisContact {
+  const digits = (x?: string) => (x ?? '').replace(/\D/g, '').slice(-10);
+  const email = (text.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g) ?? []).map((x) => x.toLowerCase()).find((x) => x !== own.email?.toLowerCase());
+  const phone = (text.match(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g) ?? []).map((x) => x.trim()).find((x) => !own.phone || digits(x) !== digits(own.phone));
+  const senders = [...text.matchAll(/^(?:De|From)\s*:\s*"?([^"<\n]+?)"?\s*<([^>\s]+)>/gim)].filter((m) => m[2].toLowerCase() !== own.email?.toLowerCase());
+  return { name: senders[0]?.[1]?.trim(), email: senders[0]?.[2]?.toLowerCase() ?? email, phone };
 }
 
 /** Sans IA: « 5 fenêtres au sous-sol, 1 porte-patio, 1650 $ taxes incluses » → points de la 1re section, prix et taxes. */

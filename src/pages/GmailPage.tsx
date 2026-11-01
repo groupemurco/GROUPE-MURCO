@@ -1,9 +1,11 @@
+import { Sparkles } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { errMsg, useToast } from '../components/Toast';
 import { db } from '../lib/db';
-import { connectGmail, disconnectGmail, getAttachment, gmailThreadLink, isGmailConnected, searchMail, type MailSummary } from '../lib/gmail';
+import { connectGmail, disconnectGmail, getAttachment, getMailText, gmailThreadLink, isGmailConnected, searchMail, type MailSummary } from '../lib/gmail';
+import { DEVIS_MAIL_KEY } from '../components/DevisEditor';
 import { useSettings } from '../lib/hooks';
 import { pendingImport } from '../lib/receipt';
 import { toISODate } from '../lib/utils';
@@ -78,6 +80,17 @@ export default function GmailPage() {
     }
   };
 
+  /** Le courriel du client → l'assistant en fait un devis (client, adresse, travaux). */
+  const makeDevis = async (m: MailSummary) => {
+    try {
+      sessionStorage.setItem(DEVIS_MAIL_KEY, await getMailText(m.id));
+      const client = byEmail.get(emailOf(m.from));
+      nav(`/doc/new?type=quote&format=devis${client ? `&client=${client.id}` : ''}`);
+    } catch (e) {
+      notify(errMsg(e), 'err');
+    }
+  };
+
   const addClient = async (m: MailSummary) => {
     const id = await db.clients.add({ name: nameOf(m.from), contact: nameOf(m.from), email: emailOf(m.from), phone: '', address: '', notes: '', createdAt: new Date().toISOString() });
     notify('Client ajouté');
@@ -127,6 +140,9 @@ export default function GmailPage() {
                     {client ? <Link to={`/clients/${client.id}`} className="badge green">client: {client.name}</Link> : <button className="btn small" onClick={() => addClient(m)}>+ client</button>}
                   </div>
                   <div className="small">{m.snippet}</div>
+                  <div className="row" style={{ marginTop: 6 }}>
+                    <button className="btn small accent" onClick={() => void makeDevis(m)}><Sparkles size={14} /> Faire un devis</button>
+                  </div>
                   {m.attachments.length > 0 && (
                     <div className="row" style={{ marginTop: 6 }}>
                       {m.attachments.map((a) => (

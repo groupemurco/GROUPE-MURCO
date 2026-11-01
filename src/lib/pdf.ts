@@ -128,7 +128,7 @@ function drawDevis(pdf: jsPDF, doc: Doc, s: Settings, y0: number, L: DocLang, to
 
   const section = (heading: string, items: string[], total = '') => {
     const list = devisItems(items);
-    if (!heading.trim() && !list.length) return;
+    if (!list.length) return; // section vide: rien sur le PDF
     room(16);
     y += 4;
     if (heading.trim()) {
