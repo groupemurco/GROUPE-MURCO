@@ -74,6 +74,7 @@ export interface Settings extends Synced {
   materialBook?: MaterialPrice[]; // catalogue de prix des matériaux (estimateur)
   dashTiles?: string[]; // tuiles cachées du tableau de bord
   wantedPlan?: string; // forfait choisi sur la page de vente
+  founderWorkspace?: boolean; // entreprise du créateur de l'app: jamais d'essai (employés compris)
   accountCreatedAt?: string; // création du compte du propriétaire (début de l'essai; employés compris)
   invoiceNotesEn?: string; // textes en anglais (clients anglophones)
   quoteNotesEn?: string;

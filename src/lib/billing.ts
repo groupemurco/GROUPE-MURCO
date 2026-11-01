@@ -7,6 +7,10 @@ import { useSettings } from './hooks';
 import { getLang } from './i18n';
 import { currentAccount, onSyncAttach, syncContext, useSyncState } from './sync';
 
+// Le proprietaire de l'app n'a jamais d'essai: toujours "fondateur" (acces complet gratuit).
+const OWNER_EMAILS = ['info@groupemurco.com', 'myriam.austin07@gmail.com'];
+const isOwnerAccount = () => OWNER_EMAILS.includes((currentAccount()?.email ?? '').toLowerCase());
+
 // Abonnement de l'entreprise: document « billing/{propriétaire} » tenu à jour par Stripe (fonctions Firebase).
 let record: BillingRecord | null = null;
 const subs = new Set<() => void>();
@@ -23,6 +27,8 @@ onSyncAttach(() => {
     const acc = currentAccount();
     void getSettings().then((s) => {
       if (acc && !s.accountCreatedAt) void saveSettings({ accountCreatedAt: acc.createdAt });
+      // Entreprise du créateur: les employés connectés à ce compte n'ont pas d'essai non plus
+      if (isOwnerAccount() && !s.founderWorkspace) void saveSettings({ founderWorkspace: true });
     });
   }
   return onSnapshot(
@@ -40,10 +46,6 @@ function foundersBefore(): string {
   }
 }
 
-// Le proprietaire de l'app n'a jamais d'essai: toujours "fondateur" (acces complet gratuit).
-const OWNER_EMAILS = ['info@groupemurco.com', 'myriam.austin07@gmail.com'];
-const isOwnerAccount = () => OWNER_EMAILS.includes((currentAccount()?.email ?? '').toLowerCase());
-
 export function useBilling(): BillingInfo {
   const st = useSyncState();
   const s = useSettings();
@@ -57,7 +59,8 @@ export function useBilling(): BillingInfo {
   } catch {
     /* ignore */
   }
-  return billingState({ signedIn, accountCreatedAt: created, record: r, foundersBefore: isOwnerAccount() ? '2999-01-01T00:00:00Z' : foundersBefore(), trialDays });
+  const founder = isOwnerAccount() || !!s.founderWorkspace;
+  return billingState({ signedIn, accountCreatedAt: created, record: r, foundersBefore: founder ? '2999-01-01T00:00:00Z' : foundersBefore(), trialDays });
 }
 
 /** Adresse des fonctions (intégrée à la compilation pour la version vendue, sinon celle des paramètres). */

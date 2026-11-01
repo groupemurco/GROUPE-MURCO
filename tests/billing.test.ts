@@ -17,4 +17,8 @@ assert.equal(a.plan, 'equipe');
 assert.equal(a.daysLeft, 9);
 assert.equal(billingState({ ...base, signedIn: true, accountCreatedAt: '2026-10-10T00:00:00Z', record: { status: 'past_due' } }).canWrite, true);
 assert.equal(billingState({ ...base, signedIn: true, accountCreatedAt: '2026-10-10T00:00:00Z', record: { status: 'canceled' } }).kind, 'expired');
-console.log('abonnement (app): 11 cas OK');
+// Compte du créateur (ou son entreprise): toujours fondateur, même créé après la date des fondateurs
+const owner = { ...base, signedIn: true, foundersBefore: '2999-01-01T00:00:00Z' };
+assert.equal(billingState({ ...owner, accountCreatedAt: '2026-10-25T12:00:00Z' }).kind, 'founder');
+assert.equal(billingState({ ...owner, accountCreatedAt: '2026-10-10T00:00:00Z' }).canWrite, true);
+console.log('abonnement (app): 13 cas OK');
