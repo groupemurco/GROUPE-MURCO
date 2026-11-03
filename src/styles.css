@@ -1848,3 +1848,19 @@ button.agh-ring:hover .fg { stroke: var(--amber-ink); }
   .doc-bar .db-actions > .btn:not(.icon-mobile) { flex: 1 1 0; font-size: 1rem; }
   .doc-bar .icon-mobile { width: 48px; flex: none; padding: 0; }
 }
+
+/* Envoyer le lien client: le message part avec le lien */
+.link-send { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.link-only { margin-top: 12px; }
+.link-only summary { cursor: pointer; }
+@media (max-width: 860px) { .link-send .btn { flex: 1 1 100%; justify-content: center; min-height: 46px; } }
+
+/* Texto depuis l'ordi: code à scanner avec le cell */
+.sms-pc { display: grid; grid-template-columns: 220px 1fr; gap: 18px; align-items: start; }
+.sms-pc-qr { display: grid; gap: 8px; justify-items: center; text-align: center; }
+.sms-pc-qr img { width: 220px; height: 220px; border-radius: 12px; border: 1px solid var(--line); background: #fff; padding: 6px; }
+.sms-pc-how { display: grid; gap: 10px; }
+.sms-pc-how ol { margin: 0; padding-left: 20px; display: grid; gap: 3px; font-size: 0.92rem; }
+.sms-pc-how textarea { min-height: 130px; line-height: 1.4; }
+.sms-pc-how .btn { justify-self: start; }
+@media (max-width: 640px) { .sms-pc { grid-template-columns: 1fr; } }

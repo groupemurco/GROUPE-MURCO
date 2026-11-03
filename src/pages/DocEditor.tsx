@@ -27,6 +27,7 @@ import { deleteDocCascade, syncTripForDoc } from '../lib/trips';
 import { addDays, METHOD_LABEL, docTotals, downloadBlob, formatDate, km, money, round2, STATUS_LABELS, statusClass, statusLabel, todayISO } from '../lib/utils';
 import { celebrate } from '../lib/feel';
 import { NumInput } from '../components/NumInput';
+import { canTextHere, SmsFromComputer } from '../components/TextSender';
 import { PdfView } from '../components/PdfView';
 
 function newDoc(type: DocType, clientId: number, s: Awaited<ReturnType<typeof getSettings>>, format?: string | null): Doc {
@@ -88,6 +89,8 @@ export default function DocEditor() {
   const [moreOpen, setMoreOpen] = useState(() => !matchMedia('(max-width: 860px)').matches);
   const [emailPdf, setEmailPdf] = useState<Blob | null>(null);
   const [showPay, setShowPay] = useState(false);
+  const [askPhone, setAskPhone] = useState<Client | null>(null);
+  const [smsPc, setSmsPc] = useState<{ phone: string; text: string; name?: string } | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [readyView, setReadyView] = useState<{ doc: Doc; blob: Blob; saved: boolean } | null>(null);
 
@@ -232,17 +235,24 @@ export default function DocEditor() {
   const sendText = async () => {
     const d = await ready();
     if (!d) return;
-    const c = clients.find((x) => x.id === d.clientId);
-    if (!c?.phone) return notify('Ajoute le cellulaire du client pour lui envoyer un texto (fiche du client).', 'err');
+    const c = await db.clients.get(d.clientId); // fiche à jour (le numéro vient peut-être d'être ajouté)
+    if (!c) return notify('Choisis le client en haut.', 'err');
+    if (!c.phone.trim()) {
+      notify('Ajoute le cellulaire du client, puis Enregistrer: le texto partira ensuite.', 'err');
+      return setAskPhone(c);
+    }
     let link = '';
     try {
       link = await publishPortal(d.id!);
     } catch {
       notify('Texto sans lien en ligne: active la synchronisation pour que le client puisse voir et accepter en ligne.', 'err');
     }
-    if (d.status === 'draft') await save({ status: 'sent', sentAt: new Date().toISOString() }, true);
     const tt = docTotals(d, s);
-    window.location.href = smsLink(c.phone, clientDocMessage({ kind: d.type, number: d.number, amount: tt.balance || tt.total, client: c, company: s.companyName, owner: s.ownerName, lang: docLangOf(d, c), link: link || undefined, job: d.title, address: d.jobAddress || c.address }));
+    const body = clientDocMessage({ kind: d.type, number: d.number, amount: tt.balance || tt.total, client: c, company: s.companyName, owner: s.ownerName, lang: docLangOf(d, c), link: link || undefined, job: d.title, address: d.jobAddress || c.address });
+    if (canTextHere()) window.location.href = smsLink(c.phone, body);
+    else setSmsPc({ phone: c.phone, text: body, name: c.name });
+    // Marquée « Envoyée » après l'ouverture des textos (rien ne doit retarder l'ouverture)
+    if (d.status === 'draft') void save({ status: 'sent', sentAt: new Date().toISOString() }, true);
   };
   const preview = async () => {
     const d = await ready();
@@ -624,6 +634,9 @@ export default function DocEditor() {
         </div>
       </div>
 
+      {askPhone && <ClientFormModal initial={askPhone} onClose={() => setAskPhone(null)} onSaved={() => { setAskPhone(null); void sendText(); }} />}
+      {smsPc && <SmsFromComputer {...smsPc} onClose={() => setSmsPc(null)} />}
+
       {emailPdf && doc.id && (
         <SendEmailModal
           title={`Envoyer ${kind.toLowerCase()} ${doc.number}`}
@@ -720,43 +733,59 @@ function PortalButton({ doc }: { doc: Doc }) {
   const [link, setLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const client = useLiveQuery(() => db.clients.get(doc.clientId), [doc.clientId]);
+  const kind = doc.type === 'invoice' ? 'facture' : 'soumission';
+  const s = useSettings();
+  const tt = docTotals(doc, s);
+  const msg = (link?: string) => clientDocMessage({ kind: doc.type, number: doc.number, amount: tt.balance || tt.total, client, company: s.companyName, owner: s.ownerName, lang: docLangOf(doc, client), link, job: doc.title, address: doc.jobAddress || client?.address });
+  const [text, setText] = useState('');
+  const [pc, setPc] = useState(false);
   const open = async () => {
     setBusy(true);
     try {
-      setLink(await publishPortal(doc.id!));
+      const l = await publishPortal(doc.id!);
+      setText(msg(l));
+      setLink(l);
     } catch (e) {
       notify(errMsg(e), 'err');
     } finally {
       setBusy(false);
     }
   };
-  const kind = doc.type === 'invoice' ? 'facture' : 'soumission';
-  const s = useSettings();
-  const tt = docTotals(doc, s);
-  const msg = (link?: string) => clientDocMessage({ kind: doc.type, number: doc.number, amount: tt.balance || tt.total, client, company: s.companyName, owner: s.ownerName, lang: docLangOf(doc, client), link, job: doc.title, address: doc.jobAddress || client?.address });
   return (
     <>
       <button className="btn" onClick={open} disabled={busy || st.status === 'off'} title={st.status === 'off' ? 'Active la synchronisation pour utiliser le lien client' : 'Lien à envoyer au client'}>
         <Link2 size={17} /> {busy ? '…' : 'Lien client'}
       </button>
       {link && (
-        <Modal title={`Lien client — ${doc.number}`} onClose={() => setLink(null)}>
+        <Modal title={`Envoyer ${doc.type === 'quote' ? 'la soumission' : 'la facture'} — ${doc.number}`} onClose={() => setLink(null)}>
           <p className="small muted" style={{ marginTop: 0 }}>
-            Le client voit sa {kind}{doc.type === 'quote' ? ', l’accepte et la signe en ligne' : ' et comment payer'}. Aucun compte requis.
+            Le message part avec le lien: le client voit sa {kind}{doc.type === 'quote' ? ', l’accepte et la signe en ligne' : ' et comment payer'}. Aucun compte requis.
           </p>
-          <div className="row" style={{ flexWrap: 'nowrap' }}>
-            <input readOnly value={link} onFocus={(e) => e.target.select()} aria-label="Lien client" />
-            <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(link); notify('Lien copié'); } catch { notify('Sélectionne et copie le lien.', 'err'); } }}><Copy size={16} /></button>
+          <label className="field">Message au client (tu peux le changer)
+            <textarea rows={7} value={text} onChange={(e) => setText(e.target.value)} />
+          </label>
+          <div className="link-send">
+            {client?.phone
+              ? canTextHere()
+                ? <a className="btn accent" href={smsLink(client.phone, text)}><MessageSquare size={16} /> Envoyer par texto</a>
+                : <button className="btn accent" onClick={() => setPc(true)}><MessageSquare size={16} /> Envoyer par texto</button>
+              : <span className="small muted">Ajoute le cellulaire du client (fiche du client) pour envoyer par texto.</span>}
+            <a className="btn" href={`mailto:${client?.email ?? ''}?subject=${encodeURIComponent(`${kind[0].toUpperCase()}${kind.slice(1)} ${doc.number} — ${s.companyName}`)}&body=${encodeURIComponent(text)}`}><Mail size={16} /> Courriel</a>
+            {(isNative() || !!navigator.share) && <button className="btn" onClick={() => void shareLink(`${doc.number}`, text, '')}><Share2 size={16} /> Partager (Messenger…)</button>}
+            <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(text); notify('Message copié: colle-le où tu veux'); } catch { notify('Sélectionne et copie le message.', 'err'); } }}><Copy size={16} /> Copier le message</button>
           </div>
-          <div className="row" style={{ marginTop: 12 }}>
-            {(isNative() || !!navigator.share) && <button className="btn accent" onClick={() => void shareLink(`${doc.number}`, msg(), link)}><Share2 size={16} /> Partager</button>}
-            {client?.phone && <a className="btn" href={smsLink(client.phone, msg(link))}>Texto</a>}
-            <a className="btn" href={`mailto:${client?.email ?? ''}?subject=${encodeURIComponent(`${kind[0].toUpperCase()}${kind.slice(1)} ${doc.number} — ${s.companyName}`)}&body=${encodeURIComponent(msg(link))}`}>Courriel</a>
-          </div>
+          <details className="link-only">
+            <summary className="small muted">Juste le lien</summary>
+            <div className="row" style={{ flexWrap: 'nowrap', marginTop: 6 }}>
+              <input readOnly value={link} onFocus={(e) => e.target.select()} aria-label="Lien client" />
+              <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(link); notify('Lien copié'); } catch { notify('Sélectionne et copie le lien.', 'err'); } }} aria-label="Copier le lien"><Copy size={16} /></button>
+            </div>
+          </details>
           {doc.viewedAt && <div className="notice info" style={{ marginTop: 12 }}>Vu par le client le {new Date(doc.viewedAt).toLocaleString('fr-CA')}</div>}
           {doc.signature && <div className="notice ok">Acceptée et signée par {doc.signature.name} le {new Date(doc.signature.at).toLocaleString('fr-CA')}</div>}
         </Modal>
       )}
+      {pc && client?.phone && <SmsFromComputer phone={client.phone} text={text} name={client.name} onClose={() => setPc(false)} />}
     </>
   );
 }
@@ -855,8 +884,11 @@ function ReadySheet({ doc, blob, saved, kind, clientName, phone, client, cardPay
     onSent();
     setBusy(false);
     const typed = custom.trim();
-    window.location.href = smsLink(phone, typed === smsText('').trim() ? smsText(link) : `${typed}${link ? `\n${link}` : ''}`);
+    const body = typed === smsText('').trim() ? smsText(link) : `${typed}${link ? `\n${link}` : ''}`;
+    if (canTextHere()) window.location.href = smsLink(phone, body);
+    else setPcText(body);
   };
+  const [pcText, setPcText] = useState<string | null>(null);
   const [editClient, setEditClient] = useState(false);
   const isQuote = doc.type === 'quote';
   const lines = doc.items.filter((it) => it.description.trim() || it.code || it.unitPrice).length;
@@ -909,6 +941,7 @@ function ReadySheet({ doc, blob, saved, kind, clientName, phone, client, cardPay
       <PdfView blob={blob} />
       <button className="btn block" style={{ marginTop: 12 }} onClick={onClose}>Continuer à modifier</button>
       {editClient && client && <ClientFormModal initial={client} onClose={() => setEditClient(false)} onSaved={() => setEditClient(false)} />}
+      {pcText !== null && phone && <SmsFromComputer phone={phone} text={pcText} name={clientName} onClose={() => setPcText(null)} />}
     </Modal>
   );
 }

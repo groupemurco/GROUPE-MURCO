@@ -128,14 +128,19 @@ export async function buildPortalData(d: Doc, token: string, owner: string): Pro
 }
 
 /** Publie (ou met à jour) la page client et retourne le lien à envoyer. */
-export async function publishPortal(docId: number): Promise<string> {
+export async function publishPortal(docId: number, opts: { wait?: boolean } = {}): Promise<string> {
   const ctx = syncContext();
   if (!ctx) throw new Error('Le lien client utilise la synchronisation: connecte-toi dans Paramètres → Synchronisation.');
   const d = await db.docs.get(docId);
   if (!d) throw new Error('Document introuvable');
   const token = d.portalToken || newToken();
-  await setDoc(doc(ctx.fs, 'portal', token), await buildPortalData(d, token, ctx.uid), { merge: true });
+  const data = await buildPortalData(d, token, ctx.uid);
+  // On n'attend pas le serveur: le lien est connu tout de suite (le texto s'ouvre sans délai, même avec un réseau lent);
+  // Firestore envoie la page dès que possible.
+  const write = setDoc(doc(ctx.fs, 'portal', token), data, { merge: true });
   if (!d.portalToken) await db.docs.update(docId, { portalToken: token });
+  if (opts.wait) await write;
+  else write.catch(() => undefined);
   return portalLink(token);
 }
 
@@ -146,6 +151,10 @@ export function portalLink(token: string): string {
   const cfg = getFirebaseConfig();
   if (!cfg) return base;
   const { apiKey, authDomain, projectId, appId, emulator } = cfg;
+  // Format court (projet~clé~app) quand l'adresse d'authentification est la standard: lien deux fois plus court
+  if (!emulator && (!authDomain || authDomain === `${projectId}.firebaseapp.com`) && !/~/.test(`${projectId}${apiKey}${appId}`)) {
+    return `${base}?c=${projectId}~${apiKey}~${appId}`;
+  }
   const b64 = btoa(JSON.stringify({ apiKey, authDomain, projectId, appId, emulator })).replace(/=+$/, '');
   return `${base}?c=${encodeURIComponent(b64)}`;
 }
@@ -205,6 +214,11 @@ export function portalFs(cfgParam: string | null): Firestore {
 }
 
 function configFromLinkLoose(p: string): FirebaseConfig | null {
+  const short = decodeURIComponent(p).split('~');
+  if (short.length === 3 && short.every(Boolean)) {
+    const [projectId, apiKey, appId] = short;
+    return { apiKey, appId, projectId, authDomain: `${projectId}.firebaseapp.com` } as FirebaseConfig;
+  }
   try {
     const j = JSON.parse(atob(decodeURIComponent(p)));
     if (j.apiKey && j.projectId) return { authDomain: `${j.projectId}.firebaseapp.com`, ...j };

@@ -9,7 +9,8 @@ export const isNative = () => Capacitor.isNativePlatform();
 export const PUBLIC_URL = (import.meta.env.VITE_PUBLIC_URL as string | undefined) || 'https://alphagym666-jpg.github.io/GROUPE-MURCO/';
 
 export function publicBase(): string {
-  if (isNative()) return PUBLIC_URL.replace(/\/?$/, '/');
+  // App installée qui charge le site en ligne: les liens suivent l'adresse réelle (ex.: un domaine à soi)
+  if (isNative()) return /^https:$/.test(location.protocol) && !/^(localhost|127\.)/.test(location.hostname) ? `${location.origin}${location.pathname.replace(/[^/]*$/, '')}` : PUBLIC_URL.replace(/\/?$/, '/');
   return `${location.origin}${location.pathname.replace(/[^/]*$/, '')}`; // dossier de l'app (index.html ou pointage.html)
 }
 
@@ -51,13 +52,15 @@ export async function shareFiles(files: { blob: Blob; name: string }[], title: s
 
 /** Partage un lien (texte + adresse). */
 export async function shareLink(title: string, text: string, url: string): Promise<boolean> {
+  // Sans adresse à part: le lien est déjà dans le texte (certaines apps ne gardent que l'adresse sinon)
+  const extra = url ? { url } : {};
   if (isNative()) {
     const { Share } = await import('@capacitor/share');
-    await Share.share({ title, text, url, dialogTitle: title }).catch(() => undefined);
+    await Share.share({ title, text, ...extra, dialogTitle: title }).catch(() => undefined);
     return true;
   }
   if (navigator.share) {
-    await navigator.share({ title, text, url }).catch(() => undefined);
+    await navigator.share({ title, text, ...extra }).catch(() => undefined);
     return true;
   }
   return false;
