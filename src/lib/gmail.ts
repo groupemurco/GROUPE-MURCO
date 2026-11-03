@@ -1,3 +1,4 @@
+import { isNative, publicBase } from './native';
 import { blobToBase64 } from './utils';
 
 // Intégration Gmail via Google Identity Services (OAuth dans le navigateur).
@@ -69,8 +70,51 @@ export function isGmailConnected(): boolean {
   return !!token && token.exp > Date.now();
 }
 
+function saveToken(access: string, expiresIn: number) {
+  token = { value: access, exp: Date.now() + (expiresIn - 60) * 1000 };
+  try {
+    localStorage.setItem(TOKEN_KEY, JSON.stringify(token));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * App installée: Google refuse la connexion dans une app (WebView). On ouvre la connexion dans Chrome,
+ * Google revient sur oauth.html, qui renvoie le jeton à l'app (com.groupemurco.gestion://oauth#access_token=…).
+ */
+async function connectGmailNative(clientId: string): Promise<void> {
+  const { App } = await import('@capacitor/app');
+  const state = Math.random().toString(36).slice(2);
+  const redirect = `${publicBase()}oauth.html`;
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
+    client_id: clientId, redirect_uri: redirect, response_type: 'token', scope: SCOPES, include_granted_scopes: 'true', prompt: 'select_account', state,
+  })}`;
+  await new Promise<void>((resolve, reject) => {
+    let handle: { remove: () => Promise<void> } | undefined;
+    const timer = setTimeout(() => { void handle?.remove(); reject(new Error('Connexion Gmail non terminée. Réessaie.')); }, 10 * 60 * 1000);
+    void App.addListener('appUrlOpen', ({ url: back }) => {
+      if (!back.startsWith('com.groupemurco.gestion://oauth')) return;
+      const p = new URLSearchParams(back.split('#')[1] ?? '');
+      clearTimeout(timer);
+      void handle?.remove();
+      if (p.get('state') !== state) return reject(new Error('Connexion Gmail refusée (réponse inattendue). Réessaie.'));
+      const access = p.get('access_token');
+      if (!access) return reject(new Error(p.get('error') === 'access_denied' ? 'Connexion Gmail annulée.' : `Connexion Gmail refusée: ${p.get('error') ?? 'inconnue'}`));
+      saveToken(access, Number(p.get('expires_in')) || 3600);
+      resolve();
+    }).then((h) => { handle = h; });
+    // Une adresse hors de l'app s'ouvre dans le navigateur du téléphone (Chrome)
+    window.location.href = url;
+  });
+}
+
 export async function connectGmail(clientId: string, interactive = true): Promise<void> {
   if (!clientId) throw new Error('Ajoute ton ID client Google OAuth dans Paramètres → Gmail.');
+  if (isNative()) {
+    if (!interactive) throw new Error('Reconnecte Gmail.');
+    return connectGmailNative(clientId);
+  }
   await loadGis();
   await new Promise<void>((resolve, reject) => {
     const client = window.google!.accounts.oauth2.initTokenClient({
