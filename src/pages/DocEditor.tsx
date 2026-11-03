@@ -400,7 +400,7 @@ export default function DocEditor() {
           <button className="btn primary hide-mobile" onClick={openEmail}><Send size={17} /> Envoyer</button>
           {doc.id && <span className="hide-mobile"><PortalButton doc={doc} /></span>}
           <button className="btn hide-mobile" onClick={share}><Share2 size={17} /> Partager</button>
-          <button className="btn hide-mobile" onClick={download}><Download size={17} /> PDF</button>
+          <button className="btn icon-mobile" onClick={download} aria-label="Télécharger le PDF" title="Télécharger le PDF"><Download size={17} /> <span className="hide-mobile">PDF</span></button>
           <button className="btn icon-mobile" onClick={preview} aria-label="Aperçu"><Eye size={17} /> <span className="hide-mobile">Aperçu</span></button>
         </div>
       </div>

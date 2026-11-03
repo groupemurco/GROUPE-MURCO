@@ -1813,3 +1813,6 @@ button.agh-ring:hover .fg { stroke: var(--amber-ink); }
 .send-questions { margin: 6px 0 4px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--blue-soft); font-size: 0.9rem; }
 .send-questions ul { margin: 4px 0 0; padding-left: 18px; }
 @media (max-width: 860px) { .qq-actions .btn { flex: 1 1 auto; justify-content: center; } }
+
+/* Aperçu + PDF sur les lignes de liste */
+.pv-group { display: inline-flex; gap: 6px; white-space: nowrap; vertical-align: middle; }
