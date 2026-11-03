@@ -138,7 +138,8 @@ export default function SettingsPage() {
           {txt('postalCode', 'Code postal')}
           {txt('phone', 'Téléphone', { type: 'tel' })}
           {txt('email', 'Courriel', { type: 'email' })}
-          {txt('website', 'Site web')}
+          {txt('website', 'Site web', { placeholder: 'www.monentreprise.com' })}
+          {s.website?.includes('@') && <div className="full small" style={{ color: 'var(--red)' }}>Le champ « Site web » contient un courriel: écris plutôt l’adresse de ton site (ex.: www.monentreprise.com). Il n’est pas imprimé tant que c’est un courriel.</div>}
           {txt('neq', 'NEQ')}
           {txt('tpsNumber', 'No TPS (laisse vide si pas inscrit)', { placeholder: '123456789 RT0001' })}
           {txt('tvqNumber', 'No TVQ (laisse vide si pas inscrit)', { placeholder: '1234567890 TQ0001' })}

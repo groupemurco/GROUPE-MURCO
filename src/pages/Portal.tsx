@@ -299,7 +299,6 @@ function PortalDevis({ devis, company, lang, total, taxIncluded, taxed, money }:
         <b>{company.owner}</b>
         <span>{company.name}</span>
         {company.tagline && <span className="muted">{company.tagline}</span>}
-        {company.email && <span>{company.email}</span>}
         {company.website && <span>{company.website}</span>}
       </div>
     </div>

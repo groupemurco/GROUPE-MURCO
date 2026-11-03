@@ -108,6 +108,12 @@ export function statusClass(doc: Doc): string {
   }
 }
 
+/** Site web à afficher: jamais un courriel (erreur fréquente dans le champ « Site web ») ni le courriel en double. */
+export function websiteOf(s: Pick<Settings, 'website' | 'email'>): string {
+  const w = (s.website ?? '').trim();
+  return !w || w.includes('@') || w.toLowerCase() === (s.email ?? '').trim().toLowerCase() ? '' : w;
+}
+
 export function companyAddressLines(s: Settings): string[] {
   const lines: string[] = [];
   if (s.address) lines.push(s.address);

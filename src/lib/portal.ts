@@ -6,7 +6,7 @@ import {
 import { db, getSettings, type Doc, type LineItem, type Review, type Signature } from './db';
 import type { Devis } from './devis';
 import { configFromLink, getFirebaseConfig, onSyncAttach, onSyncedPut, syncContext, type FirebaseConfig } from './sync';
-import { companyAddressLines, docTotals, type Totals } from './utils';
+import { companyAddressLines, docTotals, websiteOf, type Totals } from './utils';
 import { publicBase } from './native';
 
 /*
@@ -99,7 +99,7 @@ export async function buildPortalData(d: Doc, token: string, owner: string): Pro
       cardPayments: s.cardPayments && !!s.paymentsEndpoint,
       payEndpoint: s.cardPayments ? s.paymentsEndpoint.replace(/\/+$/, '') : '',
       reviewUrl: s.googleReviewUrl || '',
-      website: s.website || '',
+      website: websiteOf(s),
       tagline: s.tagline ?? '',
     },
     client: { name: c?.name ?? '', address: c?.address ?? '' },

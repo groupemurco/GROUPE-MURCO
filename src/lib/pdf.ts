@@ -2,7 +2,7 @@ import { companyTexts, D, dateFor, docLangOf, moneyFor, unitFor, type DocLang } 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Client, Doc, Settings, Trip, Expense } from './db';
-import { companyAddressLines, docTotals, lineAmount, lineHitsMinimum, formatDate, km, kmAllowance, money, type Totals } from './utils';
+import { companyAddressLines, docTotals, lineAmount, lineHitsMinimum, formatDate, km, kmAllowance, money, websiteOf, type Totals } from './utils';
 import { accentPalette, DEFAULT_ACCENT, hexToRgb, onColor } from './accent';
 import { devisItems, devisTitle, sectionTotalText } from './devis';
 
@@ -58,7 +58,7 @@ function header(pdf: jsPDF, s: Settings, title: string, L: DocLang = 'fr') {
   const rbq = s.rbqNumber ? `${D[L].rbq}: ${s.rbqNumber}` : '';
   const info = [
     companyAddressLines(s).join(', '),
-    [s.phone, s.email, s.website].filter(Boolean).join('  |  '),
+    [...new Set([s.phone, s.email, websiteOf(s)].map((x) => x?.trim()).filter(Boolean))].join('  |  '),
     [s.ownerName, rbq].filter(Boolean).join('  |  '),
   ].filter(Boolean);
   info.forEach((line, i) => pdf.text(t(line), 15, y + 3 + i * 4));
@@ -219,13 +219,12 @@ function drawDevis(pdf: jsPDF, doc: Doc, s: Settings, y0: number, L: DocLang, to
 
   section('Conditions', d.conditions);
 
-  // Mot de la fin et signatures restent ensemble: l'entrepreneur (nom, entreprise, métiers, courriel, site) et l'acceptation du client
+  // Mot de la fin et signatures restent ensemble: l'entrepreneur (nom, entreprise, métiers) et l'acceptation du client.
+  // Le courriel et le site sont déjà en haut de la feuille: on ne les répète pas ici.
   const sign: [string, 'bold' | 'normal', number, number][] = [
     [s.ownerName, 'bold', 10.5, 30],
     [s.companyName, 'normal', 9.5, 40],
     [s.tagline ?? '', 'normal', 9, 90],
-    [s.email, 'normal', 9, 60],
-    [s.website, 'normal', 9, 60],
   ];
   const rows = sign.filter(([x]) => x?.trim());
   const blockH = Math.max(rows.length * 4.4, 21);

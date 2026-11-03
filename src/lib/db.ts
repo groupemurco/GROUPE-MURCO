@@ -771,7 +771,7 @@ const MURCO_PAYMENTS_ENDPOINT = 'https://northamerica-northeast1-murco-9658e.clo
 export function withMurcoDefaults(s: Settings): Settings {
   // Seulement pour le compte de Groupe Murco: le produit sert aussi à d'autres entreprises, qui ne doivent rien en hériter
   if (!/@groupemurco\.com$/i.test(s.email ?? '')) return s;
-  return { ...s, googleClientId: s.googleClientId || MURCO_GOOGLE_CLIENT_ID, paymentsEndpoint: s.paymentsEndpoint || MURCO_PAYMENTS_ENDPOINT, logo: s.logo || MURCO_LOGO, website: s.website || 'www.groupemurco.com', tagline: s.tagline ?? 'Calfeutrage • Aluminium' };
+  return { ...s, googleClientId: s.googleClientId || MURCO_GOOGLE_CLIENT_ID, paymentsEndpoint: s.paymentsEndpoint || MURCO_PAYMENTS_ENDPOINT, logo: s.logo || MURCO_LOGO, website: s.website && !s.website.includes('@') ? s.website : 'www.groupemurco.com', tagline: s.tagline ?? 'Calfeutrage • Aluminium' };
 }
 
 export async function getSettings(): Promise<Settings> {

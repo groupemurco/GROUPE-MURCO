@@ -8,7 +8,7 @@ import {
 import { devisPriceItems, draftPrice, jobTitle, keepClientMail, resolveClient, runDevisAi } from '../lib/devisFlow';
 import { useSettings } from '../lib/hooks';
 import { listen, speechSupported, type Listening } from '../lib/speech';
-import { docTotals, lineAmount, money, round2 } from '../lib/utils';
+import { docTotals, lineAmount, money, round2, websiteOf } from '../lib/utils';
 import { Modal } from './Modal';
 import { NumInput } from './NumInput';
 import { errMsg, useConfirm, useToast } from './Toast';
@@ -187,7 +187,7 @@ export function DevisEditor({ doc, onChange, initialQuestions = [] }: { doc: Doc
         <b>{s.ownerName || 'Ton nom (Paramètres)'}</b>
         <span>{s.companyName}</span>
         <input value={s.tagline ?? ''} placeholder="Tes métiers (ex.: Calfeutrage • Aluminium)" aria-label="Métiers sous la signature" onChange={(e) => void saveSettings({ tagline: e.target.value })} />
-        <span className="small muted">{[s.email, s.website].filter(Boolean).join(' · ') || 'Courriel et site web: Paramètres'}</span>
+        <span className="small muted">{s.email || websiteOf(s) ? `Ton courriel et ton site sont en haut du devis (${[s.email, websiteOf(s)].filter(Boolean).join(' · ')}).` : 'Ajoute ton courriel et ton site web dans Paramètres.'}</span>
       </div>
 
       {saving !== null && (
