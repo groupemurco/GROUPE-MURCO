@@ -198,6 +198,15 @@ export async function reattach() {
   attach();
 }
 const attachListeners = new Set<() => (() => void) | void>();
+/** Exécuté une fois les données du nuage reçues (avant « tout est chargé »): seul moment sûr pour écrire des réglages. */
+const firstSyncHooks = new Set<() => Promise<void> | void>();
+export function onFirstSync(fn: () => Promise<void> | void) {
+  firstSyncHooks.add(fn);
+}
+// Tables dont la 1re réponse du serveur est appliquée (avant, rien n'est envoyé: un appareil neuf écrasait le nuage)
+let readyTables = new Set<SyncTable>();
+let freshDevice = false;
+const syncedKey = () => `murco.synced:${workspace ?? user?.uid ?? ''}`;
 /** Exécuté à chaque connexion au compte (ex.: écoute du portail client). */
 export function onSyncAttach(fn: () => (() => void) | void) {
   attachListeners.add(fn);
@@ -501,12 +510,25 @@ async function fetchFile(table: SyncTable, id: unknown): Promise<{ blob: Blob; n
 }
 
 /** Applique un enregistrement venant du nuage s'il est plus récent que la copie locale. */
-async function applyRemote(table: SyncTable, remote: Rec) {
+async function applyRemote(table: SyncTable, remote: Rec, freshFirst = false) {
   const t = db.table(table);
   const key = keyOf(table, String(remote.id));
   const local = (await t.get(key)) as Rec | undefined;
   const ru = remote._u ?? 0;
   const lu = local?._u ?? -1;
+  // Appareil neuf (ou nouvelle adresse de l'app): ce qui est dans le nuage gagne toujours sur les valeurs par défaut
+  // créées ici avant la connexion; on garde seulement ce que le nuage n'a pas.
+  if (freshFirst && local && !remote._deleted && !BLOBS[table]) {
+    const merged: Rec = { ...local };
+    for (const [k, v] of Object.entries(remote)) if (v !== undefined) merged[k] = v;
+    const extra = Object.keys(local).some((k) => !(k in remote) && local[k] !== undefined && local[k] !== '' && k !== '_u');
+    if (extra) {
+      const fixed: Rec = { ...merged, id: key, _u: Math.max(lu, ru) + 1 };
+      await remoteTx([t], () => t.put(fixed));
+      await pushRecord(table, fixed);
+    } else await remoteTx([t], () => t.put({ ...remote, id: key }));
+    return;
+  }
   // Un appareil neuf envoie des réglages vides, jugés plus récents: ils ne doivent jamais effacer une clé déjà enregistrée
   // (clé Google Maps, ID Gmail, adresse du paiement par carte).
   if (table === 'settings' && local && !remote._deleted) {
@@ -566,8 +588,16 @@ function attach() {
     /* ignore */
   }
 
-  // Local → nuage
+  readyTables = new Set();
+  try {
+    freshDevice = !localStorage.getItem(syncedKey());
+  } catch {
+    freshDevice = true;
+  }
+
+  // Local → nuage (seulement une fois la table reçue du serveur; avant, la 1re réponse règle les écarts)
   stopLocal = onLocalChange((c) => {
+    if (c.type === 'put' && !readyTables.has(c.table)) return;
     const job =
       c.type === 'put'
         ? Promise.all((c.values ?? []).map(async (v) => {
@@ -589,20 +619,33 @@ function attach() {
   for (const table of tables) {
     let first = true;
     let queue = Promise.resolve();
+    // includeMetadataChanges: on attend la vraie réponse du serveur (pas le cache vide d'un nouvel appareil ou
+    // d'une nouvelle adresse) avant de dire « tout est chargé » — sinon l'app croyait l'entreprise vide.
     const u = onSnapshot(
       collection(fs, base(), table),
+      { includeMetadataChanges: true },
       (snap) => {
         const changes = snap.docChanges().filter((ch) => ch.type !== 'removed');
-        const isFirst = first;
-        first = false;
+        const isFirst = first && !snap.metadata.fromCache;
+        if (isFirst) first = false;
+        if (!changes.length && !isFirst) return;
         queue = queue.then(async () => {
-          for (const ch of changes) await applyRemote(table, { ...(ch.doc.data() as Rec), id: ch.doc.id });
+          for (const ch of changes) await applyRemote(table, { ...(ch.doc.data() as Rec), id: ch.doc.id }, isFirst && freshDevice);
           if (isFirst) {
             // Envoie ce qui n'existe que sur cet appareil
             const remoteIds = new Set(snap.docs.map((d) => d.id));
             const locals = (await db.table(table).toArray()) as Rec[];
             for (const l of locals) if (!remoteIds.has(String(l.id))) await pushRecord(table, l);
-            if (--pendingFirst === 0) setState({ status: 'ok', lastSync: Date.now() });
+            readyTables.add(table);
+            if (--pendingFirst === 0) {
+              for (const fn of firstSyncHooks) await Promise.resolve(fn()).catch(() => undefined);
+              try {
+                localStorage.setItem(syncedKey(), '1');
+              } catch {
+                /* ignore */
+              }
+              setState({ status: 'ok', lastSync: Date.now() });
+            }
           } else setState({ lastSync: Date.now() });
         }).catch((e) => setState({ status: 'error', error: msg(e) }));
       },

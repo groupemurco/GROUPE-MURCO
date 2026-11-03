@@ -7,7 +7,7 @@ import { errMsg, useToast } from '../components/Toast';
 import { DEFAULT_SETTINGS, saveSettings, type GeoPoint } from '../lib/db';
 import { geocode } from '../lib/geo';
 import { tr, useLang } from '../lib/i18n';
-import { getFirebaseConfig, signInEmail, useSyncState } from '../lib/sync';
+import { getFirebaseConfig, signInEmail, signOutSync, useSyncState } from '../lib/sync';
 import { applyTrade, TRADE_GROUPS, TRADES, tradeServices, tradeTypes } from '../lib/templates';
 import { TRADE_ICON } from '../lib/tradeIcons';
 import { DEFAULT_AGENDA } from '../lib/agendaPrefs';
@@ -90,6 +90,14 @@ export default function Signup() {
       <div className="su-bar"><span style={{ width: `${(step / steps) * 100}%` }} /></div>
 
       <div className="su-card" key={step}>
+        {step === 1 && signedIn && st.email && (
+          <div className="notice" style={{ marginBottom: 14 }}>
+            {t(`Tu es connecté avec ${st.email}, mais ce compte ne contient pas encore d’entreprise. Si tu avais déjà tout rempli, tes données sont sûrement dans un autre compte (ton autre courriel, ou « Continuer avec Google »).`, `You are signed in as ${st.email}, but this account has no business yet. If you already filled everything in, your data is probably in another account.`)}
+            <div style={{ marginTop: 8 }}>
+              <button type="button" className="btn small" onClick={() => void signOutSync().then(() => nav('/connexion', { replace: true }))}>{t('Me déconnecter et essayer un autre compte', 'Sign out and try another account')}</button>
+            </div>
+          </div>
+        )}
         {step === 1 && (
           <>
             <h1>{t('Parle-nous de ton entreprise', 'Tell us about your business')}</h1>

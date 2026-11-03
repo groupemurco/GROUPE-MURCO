@@ -1,11 +1,11 @@
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useSyncExternalStore } from 'react';
 import { PRODUCT } from '../brand';
-import { getSettings, saveSettings } from './db';
+import { db, DEFAULT_SETTINGS, getSettings, MURCO_SETTINGS, saveSettings, type Settings } from './db';
 import { billingState, type BillingInfo, type BillingRecord } from './billingState';
 import { useSettings } from './hooks';
 import { getLang } from './i18n';
-import { currentAccount, onSyncAttach, syncContext, useSyncState } from './sync';
+import { currentAccount, onFirstSync, onSyncAttach, syncContext, useSyncState } from './sync';
 
 // Le proprietaire de l'app n'a jamais d'essai: toujours "fondateur" (acces complet gratuit).
 const OWNER_EMAILS = ['info@groupemurco.com', 'myriam.austin07@gmail.com'];
@@ -19,18 +19,44 @@ const set = (r: BillingRecord | null) => {
   subs.forEach((f) => f());
 };
 
+// Réglages écrits seulement APRÈS avoir reçu ceux du nuage (sinon un appareil neuf écrasait l'entreprise)
+onFirstSync(async () => {
+  const ctx = syncContext();
+  if (!ctx || ctx.role !== 'owner') return;
+  const acc = currentAccount();
+  const s = await getSettings();
+  const patch: Partial<Settings> = {};
+  // Début de l'essai = création du compte du propriétaire (gardé dans les réglages pour les employés aussi)
+  if (acc && !s.accountCreatedAt) patch.accountCreatedAt = acc.createdAt;
+  // Entreprise du créateur: les employés connectés à ce compte n'ont pas d'essai non plus
+  if (isOwnerAccount() && !s.founderWorkspace) patch.founderWorkspace = true;
+  // Réglages de Groupe Murco effacés par l'ancien bogue (connexion sur un appareil neuf): on les remet
+  if (isOwnerAccount() && !s.companyName.trim()) Object.assign(patch, await murcoRepair(s));
+  if (Object.keys(patch).length) await saveSettings(patch);
+});
+
+/** Remet les infos de Groupe Murco qui sont vides; les numéros suivent les documents existants. */
+async function murcoRepair(s: Settings): Promise<Partial<Settings>> {
+  const patch: Record<string, unknown> = { setupComplete: true };
+  const cur = s as unknown as Record<string, unknown>;
+  const def = DEFAULT_SETTINGS as unknown as Record<string, unknown>;
+  for (const [k, v] of Object.entries(MURCO_SETTINGS)) {
+    if (k === 'id' || v === '' || v === undefined) continue;
+    if (cur[k] === undefined || cur[k] === '' || cur[k] === def[k]) patch[k] = v;
+  }
+  if (!s.trade) patch.trade = 'calfeutrage';
+  if (!s.trades?.length) patch.trades = [s.trade || 'calfeutrage'];
+  const docs = await db.docs.toArray();
+  const next = (type: 'invoice' | 'quote', prefix: string) =>
+    docs.filter((d) => d.type === type && d.number.startsWith(prefix)).reduce((m, d) => Math.max(m, Number(d.number.slice(prefix.length)) || 0), 1000) + 1;
+  patch.nextInvoiceNumber = Math.max(s.nextInvoiceNumber, next('invoice', s.invoicePrefix || 'F-'));
+  patch.nextQuoteNumber = Math.max(s.nextQuoteNumber, next('quote', s.quotePrefix || 'S-'));
+  return patch as Partial<Settings>;
+}
+
 onSyncAttach(() => {
   const ctx = syncContext();
   if (!ctx) return;
-  // Début de l'essai = création du compte du propriétaire (gardé dans les réglages pour les employés aussi)
-  if (ctx.role === 'owner') {
-    const acc = currentAccount();
-    void getSettings().then((s) => {
-      if (acc && !s.accountCreatedAt) void saveSettings({ accountCreatedAt: acc.createdAt });
-      // Entreprise du créateur: les employés connectés à ce compte n'ont pas d'essai non plus
-      if (isOwnerAccount() && !s.founderWorkspace) void saveSettings({ founderWorkspace: true });
-    });
-  }
   return onSnapshot(
     doc(ctx.fs, 'billing', ctx.workspace),
     (snap) => set(snap.exists() ? (snap.data() as BillingRecord) : null),
