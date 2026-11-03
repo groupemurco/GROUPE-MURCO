@@ -6,7 +6,7 @@ import { Capacitor } from '@capacitor/core';
 export const isNative = () => Capacitor.isNativePlatform();
 
 /** Adresse publique de l'app web (pour les liens envoyés aux clients et aux autres appareils). */
-export const PUBLIC_URL = (import.meta.env.VITE_PUBLIC_URL as string | undefined) || 'https://alphagym666-jpg.github.io/GROUPE-MURCO/';
+export const PUBLIC_URL = (import.meta.env.VITE_PUBLIC_URL as string | undefined) || 'https://groupemurco.github.io/GROUPE-MURCO/';
 
 export function publicBase(): string {
   // App installée qui charge le site en ligne: les liens suivent l'adresse réelle (ex.: un domaine à soi)

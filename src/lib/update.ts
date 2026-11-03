@@ -3,7 +3,7 @@ import { isNative, PUBLIC_URL } from './native';
 
 // L'app installée (APK) contient son propre code: elle ne se met pas à jour toute seule.
 // Au démarrage, elle regarde la version du site; si une version plus récente existe, on propose le téléchargement.
-export const APK_URL = 'https://github.com/alphagym666-jpg/GROUPE-MURCO/releases/download/android-latest/Murco.apk';
+export const APK_URL = 'https://github.com/groupemurco/GROUPE-MURCO/releases/download/android-latest/Murco.apk';
 const SKIP_KEY = 'murco.skipVersion';
 
 export function useAppUpdate(): { available: boolean; dismiss: () => void } {

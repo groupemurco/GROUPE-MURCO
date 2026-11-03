@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { PRODUCT } from '../brand';
 import { errMsg, useToast } from '../components/Toast';
 import { tr, useLang } from '../lib/i18n';
-import { getFirebaseConfig, resetPassword, signInEmail, signInGoogle } from '../lib/sync';
+import { getFirebaseConfig, parseFirebaseConfig, resetPassword, saveFirebaseConfig, signInEmail, signInGoogle } from '../lib/sync';
 import { isPunchApp } from '../lib/team';
 
 /** Connexion à un compte existant (nouvel appareil, employé, etc.). */
@@ -17,6 +17,7 @@ export default function Login() {
   const [pw, setPw] = useState('');
   const [busy, setBusy] = useState(false);
   const configured = !!getFirebaseConfig();
+  const [linkText, setLinkText] = useState('');
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -38,7 +39,17 @@ export default function Login() {
       <div className="su-card" style={{ maxWidth: 440 }}>
         <h1>{isPunchApp() ? t('Pointage', 'Time clock') : t('Bon retour!', 'Welcome back!')}</h1>
         {!configured ? (
-          <div className="notice">{t('La connexion n’est pas encore configurée sur cette installation. Va dans Paramètres → Synchronisation.', 'Login is not configured on this installation yet. Go to Settings → Sync.')}</div>
+          <div className="grid" style={{ gap: 10 }}>
+            <div className="notice">{t('Cette adresse ne sait pas encore où sont tes données. Colle un lien client que tu as déjà envoyé (dans tes textos ou courriels), ou le lien « Connecter un appareil »: tes données reviennent après la connexion.', 'This address does not know where your data is yet. Paste a client link you already sent (from your texts or emails), or the “Connect a device” link: your data comes back after you sign in.')}</div>
+            <textarea rows={3} value={linkText} onChange={(e) => setLinkText(e.target.value)} placeholder="https://…/#/p/…?c=…" aria-label={t('Lien client', 'Client link')} />
+            <button type="button" className="btn accent big" onClick={() => {
+              const cfg = parseFirebaseConfig(linkText);
+              if (!cfg) return notify(t('Ce lien ne contient pas l’information. Prends un lien client envoyé à un client (il finit par « c=… »).', 'This link does not contain it. Use a link sent to a client (it ends with “c=…”).'), 'err');
+              saveFirebaseConfig(cfg);
+              notify(t('C’est bon! Connecte-toi maintenant avec ton compte.', 'All set! Now sign in with your account.'));
+              setTimeout(() => location.reload(), 700);
+            }}>{t('Retrouver mes données', 'Find my data')}</button>
+          </div>
         ) : (
           <form className="grid" style={{ gap: 12 }} onSubmit={(e) => { e.preventDefault(); void run(() => signInEmail(email, pw)); }}>
             <label className="field">{t('Courriel', 'Email')}<input type="email" autoComplete="username" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} /></label>

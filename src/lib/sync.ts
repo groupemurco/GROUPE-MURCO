@@ -108,6 +108,9 @@ export function parseFirebaseConfig(text: string): FirebaseConfig | null {
   // Le lien « Connecter ton téléphone » collé tel quel (l'app Android n'ouvre pas les liens web)
   const link = t.match(/[?&]sync=([^&\s]+)/);
   if (link) return configFromLink(link[1]);
+  // Un lien client déjà envoyé (…#/p/xxx?c=…) contient aussi l'adresse publique de la base de données
+  const client = t.match(/[?&]c=([^&\s#]+)/);
+  if (client) return configFromClientParam(client[1]);
   try {
     const j = JSON.parse(t);
     if (j.apiKey && j.projectId) return j;
@@ -149,6 +152,22 @@ export function deviceLink(): string | null {
   if (!cfg) return null;
   const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(cfg))));
   return `${publicBase()}#/parametres?sync=${encodeURIComponent(b64)}`;
+}
+
+/** Paramètre « c » des liens clients: format court (projet~clé~app) ou ancien format (JSON en base64). */
+export function configFromClientParam(p: string): FirebaseConfig | null {
+  const short = decodeURIComponent(p).split('~');
+  if (short.length === 3 && short.every(Boolean)) {
+    const [projectId, apiKey, appId] = short;
+    return { apiKey, appId, projectId, authDomain: `${projectId}.firebaseapp.com` };
+  }
+  try {
+    const j = JSON.parse(atob(decodeURIComponent(p)));
+    if (j.apiKey && j.projectId) return { authDomain: `${j.projectId}.firebaseapp.com`, ...j };
+  } catch {
+    /* ancien format */
+  }
+  return configFromLink(p);
 }
 
 export function configFromLink(param: string): FirebaseConfig | null {

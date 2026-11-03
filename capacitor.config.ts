@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   // L'app charge toujours la dernière version du site: plus besoin de réinstaller l'APK à chaque changement.
   // allowNavigation: l'app suit le site s'il déménage sur un domaine à soi (ex.: app.groupemurco.com)
-  server: { url: 'https://alphagym666-jpg.github.io/GROUPE-MURCO/', androidScheme: 'https', allowNavigation: ['*.groupemurco.com', 'groupemurco.com'] },
+  server: { url: 'https://groupemurco.github.io/GROUPE-MURCO/', androidScheme: 'https', allowNavigation: ['*.groupemurco.com', 'groupemurco.com'] },
   android: { allowMixedContent: false },
   ios: { contentInset: 'automatic' },
 };

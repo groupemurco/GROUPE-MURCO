@@ -422,7 +422,7 @@ function SyncSection() {
 
   const saveCfg = () => {
     const cfg = parseFirebaseConfig(cfgText);
-    if (!cfg) return notify('Configuration invalide: colle le bloc « firebaseConfig » de Firebase.', 'err');
+    if (!cfg) return notify('Configuration invalide: colle un lien client déjà envoyé, le lien « Connecter un appareil » ou le bloc « firebaseConfig » de Firebase.', 'err');
     saveFirebaseConfig(cfg);
     notify('Configuration enregistrée — redémarrage…');
     setTimeout(() => location.reload(), 600);

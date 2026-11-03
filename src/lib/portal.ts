@@ -5,7 +5,7 @@ import {
 } from 'firebase/firestore';
 import { db, getSettings, type Doc, type LineItem, type Review, type Signature } from './db';
 import type { Devis } from './devis';
-import { configFromLink, getFirebaseConfig, onSyncAttach, onSyncedPut, syncContext, type FirebaseConfig } from './sync';
+import { configFromClientParam, getFirebaseConfig, onSyncAttach, onSyncedPut, syncContext, type FirebaseConfig } from './sync';
 import { companyAddressLines, docTotals, websiteOf, type Totals } from './utils';
 import { publicBase } from './native';
 
@@ -213,20 +213,7 @@ export function portalFs(cfgParam: string | null): Firestore {
   return viewFs;
 }
 
-function configFromLinkLoose(p: string): FirebaseConfig | null {
-  const short = decodeURIComponent(p).split('~');
-  if (short.length === 3 && short.every(Boolean)) {
-    const [projectId, apiKey, appId] = short;
-    return { apiKey, appId, projectId, authDomain: `${projectId}.firebaseapp.com` } as FirebaseConfig;
-  }
-  try {
-    const j = JSON.parse(atob(decodeURIComponent(p)));
-    if (j.apiKey && j.projectId) return { authDomain: `${j.projectId}.firebaseapp.com`, ...j };
-  } catch {
-    /* ancien format */
-  }
-  return configFromLink(p);
-}
+const configFromLinkLoose = (p: string): FirebaseConfig | null => configFromClientParam(p);
 
 export async function loadPortal(token: string, cfgParam: string | null): Promise<PortalData | null> {
   const fs = portalFs(cfgParam);

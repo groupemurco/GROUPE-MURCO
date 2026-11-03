@@ -1,6 +1,6 @@
 # Groupe Murco — Gestion
 
-**Ouvrir l'application:** <https://alphagym666-jpg.github.io/GROUPE-MURCO/>
+**Ouvrir l'application:** <https://groupemurco.github.io/GROUPE-MURCO/>
 (sur l'ordi: ouvre le lien dans Chrome/Edge et clique l'icône « Installer » dans la barre d'adresse;
 sur iPhone: Safari → Partager → « Sur l'écran d'accueil »; sur Android: Chrome → ⋮ → « Installer l'application »)
 
@@ -54,7 +54,7 @@ Ensuite sur le téléphone:
 
 1. <https://console.firebase.google.com/> → **Créer un projet** « murco ».
 2. **Authentication → Commencer** → active **Adresse e-mail/Mot de passe** (et Google si désiré).
-3. **Authentication → Paramètres → Domaines autorisés** → ajoute `alphagym666-jpg.github.io`.
+3. **Authentication → Paramètres → Domaines autorisés** → ajoute `groupemurco.github.io`.
 4. **Firestore Database → Créer une base** → région `northamerica-northeast1 (Montréal)`, mode production.
    Onglet **Règles**: colle le contenu de [`firestore.rules`](firestore.rules) → **Publier**
    (ces règles protègent tes données et permettent au client de seulement voir/signer sa soumission).
@@ -71,14 +71,14 @@ Forfait gratuit Firebase (Spark): 1 Go de données et 50 000 lectures/jour, larg
 
 1. <https://console.cloud.google.com/google/maps-apis/start> (même projet que Firebase).
 2. Active: **Maps JavaScript API**, **Geocoding API**, **Routes API**, **Places API (New)**, **Maps Embed API**.
-3. **Clés et identifiants → Créer une clé API** → restriction « Sites Web »: `https://alphagym666-jpg.github.io/*`.
+3. **Clés et identifiants → Créer une clé API** → restriction « Sites Web »: `https://groupemurco.github.io/*`.
 4. Colle la clé dans **Paramètres → Google Maps** → **Tester**. La clé se synchronise sur le téléphone.
 
 Google offre un crédit mensuel gratuit qui couvre largement l'usage d'une petite entreprise.
 
 ## App Android
 
-À chaque mise à jour, GitHub construit l'app: **https://github.com/alphagym666-jpg/GROUPE-MURCO/releases/tag/android-latest**
+À chaque mise à jour, GitHub construit l'app: **https://github.com/groupemurco/GROUPE-MURCO/releases/tag/android-latest**
 → télécharge `Murco.apk` sur le téléphone et ouvre-le (autorise « sources inconnues » la première fois).
 Les mises à jour s'installent par-dessus. Pour le Play Store (25 $ une fois): créer une clé de publication privée
 (secret GitHub) et produire un AAB signé.
@@ -101,7 +101,7 @@ de la clé Google Maps.
    (événement `checkout.session.completed`) et copier le « secret de signature » (`whsec_…`).
 4. Ouvrir **Cloud Shell** (<https://shell.cloud.google.com>, bouton `>_` dans la console Google Cloud) et coller:
    ```bash
-   git clone https://github.com/alphagym666-jpg/GROUPE-MURCO && cd GROUPE-MURCO
+   git clone https://github.com/groupemurco/GROUPE-MURCO && cd GROUPE-MURCO
    npx -y firebase-tools login --no-localhost
    npx -y firebase-tools functions:secrets:set STRIPE_SECRET_KEY --project <ID-du-projet>      # colle sk_live_…
    npx -y firebase-tools functions:secrets:set STRIPE_WEBHOOK_SECRET --project <ID-du-projet>  # colle whsec_…

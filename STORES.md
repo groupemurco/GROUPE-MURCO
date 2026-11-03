@@ -40,7 +40,7 @@ Ce guide prépare la publication de **Brigaxo** (identifiant `com.groupemurco.ge
 > 14 jours d'essai gratuit. Conçu au Québec, en français et en anglais.
 
 **Catégorie**: Entreprise · **Coordonnées**: info@groupemurco.com
-**Politique de confidentialité**: `https://alphagym666-jpg.github.io/GROUPE-MURCO/#/confidentialite` (idéal: la mettre sur une page web simple de ton propre domaine, sans `#`).
+**Politique de confidentialité**: `https://groupemurco.github.io/GROUPE-MURCO/#/confidentialite` (idéal: la mettre sur une page web simple de ton propre domaine, sans `#`).
 
 **Visuels à préparer** 👤: icône 512×512, image de présentation 1024×500, 2 à 8 captures d'écran de téléphone (1080×1920 ou proches).
 
