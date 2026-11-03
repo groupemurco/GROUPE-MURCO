@@ -344,13 +344,52 @@ export function devisFromJson(raw: unknown, fallback: Devis, prices: PriceRef[] 
   };
 }
 
-/** Sans IA: courriel et téléphone repérés dans le texte (sauf les tiens), et le nom de l'expéditeur « De : Nom <courriel> ». */
+const STREET = '(?:rue|avenue|av\\.?|boulevard|boul\\.?|chemin|ch\\.|rang|route|rte|place|montée|croissant|impasse|terrasse|allée|promenade|côte)';
+const CITY = "[A-ZÉÈÂÎ][\\wéèêëàâîïôöùûüç'’-]*(?:[ -](?:[A-ZÉÈÂÎ][\\wéèêëàâîïôöùûüç'’-]*|de|du|des|sur|la|le))*";
+const ADDRESS = new RegExp(`\\b\\d{1,6}\\s*,?\\s+${STREET}\\s+[^,.\\n]+?(?=\\s*(?:,|\\.|\\n|$|\\s(?:à|a|au)\\s))(?:\\s*,?\\s*(?:à|a|au)?\\s*(${CITY}))?(?:,?\\s*(?:QC|Qc|Québec))?(?:,?\\s*[A-Z]\\d[A-Z]\\s?\\d[A-Z]\\d)?`, 'i');
+
+/** Sans IA: courriel, téléphone, adresse et nom repérés dans le texte (sauf les tiens). */
 export function contactFromText(text: string, own: { email?: string; phone?: string } = {}): DevisContact {
   const digits = (x?: string) => (x ?? '').replace(/\D/g, '').slice(-10);
   const email = (text.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g) ?? []).map((x) => x.toLowerCase()).find((x) => x !== own.email?.toLowerCase());
-  const phone = (text.match(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g) ?? []).map((x) => x.trim()).find((x) => !own.phone || digits(x) !== digits(own.phone));
+  const phones = text.match(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/g) ?? [];
+  const phone = phones.map((x) => x.trim()).find((x) => !own.phone || digits(x) !== digits(own.phone));
   const senders = [...text.matchAll(/^(?:De|From)\s*:\s*"?([^"<\n]+?)"?\s*<([^>\s]+)>/gim)].filter((m) => m[2].toLowerCase() !== own.email?.toLowerCase());
-  return { name: senders[0]?.[1]?.trim(), email: senders[0]?.[2]?.toLowerCase() ?? email, phone };
+  const a = text.match(ADDRESS);
+  const address = a ? a[0].replace(/\s*,?\s+à\s+/i, ', ').replace(/\s+/g, ' ').trim() : undefined;
+  // Une phrase qui commence par le nom: « Denise Tremblay 819 555-0101, … » ou « Pour Denise Tremblay, … »
+  const lead = text.replace(/^\s*(?:pour|client(?:e)?\s*:?|chez)\s+/i, '').split(/[,\n:;]|\d/)[0].trim();
+  const W = "[A-ZÉÈÂÎ][\\wéèêëàâîïôöùûüç'’-]+";
+  const nameLike = new RegExp(`^(?:(?:M\\.|Mme|Monsieur|Madame)\\s+)?${W}(?:\\s+${W}){0,3}$`).test(lead) ? lead : undefined;
+  // « … chez Marc Lévesque », « … pour Mme Roy »
+  const after = text.match(new RegExp(`\\b(?:chez|pour|client(?:e)?\\s*:)\\s+((?:(?:M\\.|Mme)\\s+)?${W}(?:\\s+${W}){1,3})`))?.[1];
+  return { name: senders[0]?.[1]?.trim() ?? nameLike ?? after, email: senders[0]?.[2]?.toLowerCase() ?? email, phone, ...(address ? { address } : {}) };
+}
+
+/** Le texte sans les coordonnées (pour en faire les points du devis sans IA). */
+export function withoutContact(text: string, c: DevisContact): string {
+  let t = text;
+  for (const x of [c.email, c.phone, c.name]) if (x) t = t.split(x).join(' ');
+  const a = t.match(ADDRESS);
+  if (a) t = t.replace(a[0], ' ');
+  if (c.name) t = t.replace(/\b(?:chez|pour)\s*(?=[,.;:\n]|$)/gi, ' ');
+  return t
+    .replace(/^\s*(?:pour|chez)\b/i, ' ')
+    .split(/[\n.;:]+/)
+    .map((x) => x.replace(/\s+/g, ' ').replace(/^[\s,]+|[\s,]+$/g, ''))
+    .filter(Boolean)
+    .join('. ');
+}
+
+/** Sans IA: le modèle selon les mots de la demande (calfeutrage, peinture, gouttières…). */
+export function templateKeyForText(text: string): string | undefined {
+  const t = text.toLowerCase();
+  const map: [RegExp, string][] = [
+    [/calfeutr|scellant|joints?\b|mastic/, 'calfeutrage'], [/peintur|peinturer|repeind|teintur/, 'peinture'], [/toit|bardeau|toiture/, 'toiture'],
+    [/d[ée]neig|neige/, 'deneigement'], [/goutti[èe]re|vitres?\b|lavage|pression/, 'exterieur'], [/tonte|gazon|pelouse|haies?\b|terrain/, 'paysagement'],
+    [/m[ée]nage|nettoyage/, 'menage'],
+  ];
+  return map.find(([re]) => re.test(t))?.[1];
 }
 
 /** Sans IA: « 5 fenêtres au sous-sol, 1 porte-patio, 1650 $ taxes incluses » → points de la 1re section, prix et taxes. */
@@ -359,7 +398,8 @@ export function devisFromText(text: string, base: Devis): { devis: Devis; price?
   const pm = text.match(/(\d[\d\s]*(?:[.,]\d{1,2})?)\s*(?:\$|piasses?|dollars?)/i);
   const price = pm ? Number(pm[1].replace(/\s/g, '').replace(',', '.')) : undefined;
   const rest = (pm ? text.replace(pm[0], ' ') : text).replace(/(plus|\+)?\s*(les\s+)?tax\w*(\s+inclu\w*)?/gi, ' ');
-  const parts = rest.split(/[\n,;]+|\s+et\s+/i).map((x) => x.trim().replace(/[.:]+$/, '')).filter((x) => x.length > 2);
+  // « Calfeutrage de 6 fenêtres » → « 6 fenêtres » (le type de job est déjà dans le titre)
+  const parts = rest.split(/[\n,;.]+|\s+et\s+/i).map((x) => x.trim().replace(/[.:]+$/, '').replace(/^[^\d,]{3,40}?\s+(?:de|des|d[’'])\s*(?=\d)/i, '')).filter((x) => x.length > 2);
   const devis = copy(base);
   if (parts.length) {
     const first = devis.sections[0] ?? { title: 'Travaux visés', items: [] };

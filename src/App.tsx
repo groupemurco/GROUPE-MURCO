@@ -1,5 +1,5 @@
 import { Mic,
-  CalendarDays, Camera, ChevronLeft, Crown, Download, Lock, FolderOpen, TrendingUp, Inbox, Clock, Briefcase, UsersRound, Car, ClipboardList, FileText, Home, LayoutGrid, Mail, Moon, Package, Plus, Search, Settings, Sparkles, Sun, SunMoon, Tag, Timer, Users, X, Zap, ImagePlus, Truck, Wrench, type LucideIcon, ScrollText,
+  CalendarDays, Camera, ChevronLeft, Crown, Download, Lock, FolderOpen, TrendingUp, Inbox, Clock, Briefcase, UsersRound, Car, ClipboardList, FileText, Home, LayoutGrid, Mail, Moon, Package, Plus, Search, Settings, Sparkles, Sun, SunMoon, Tag, Timer, Users, X, Zap, ImagePlus, Truck, Wrench, type LucideIcon,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -20,6 +20,7 @@ import ExpenseEditor from './pages/ExpenseEditor';
 import Expenses from './pages/Expenses';
 import Express from './pages/Express';
 import VoiceJob from './pages/VoiceJob';
+import QuickQuote from './pages/QuickQuote';
 import Trade from './pages/Trade';
 import Estimator from './pages/Estimator';
 import Orders from './pages/Orders';
@@ -119,7 +120,7 @@ const SIDE_GROUPS: { title: string; items: string[] }[] = [
 
 const PAGE_TITLE: [RegExp, string][] = [
   [/^\/doc\//, 'Facture / soumission'], [/^\/job\//, 'Job'], [/^\/depenses\/.+/, 'Reçu'], [/^\/clients\/.+/, 'Client'],
-  [/^\/projets\/.+/, 'Projet'], [/^\/express/, 'Facture express'], [/^\/dicter/, 'Assistant'], [/^\/achats\/.+/, 'Commande'], [/^\/temps/, 'Feuilles de temps'],
+  [/^\/projets\/.+/, 'Projet'], [/^\/express/, 'Facture express'], [/^\/dicter/, 'Assistant'], [/^\/soumission-ia/, 'Soumission IA'], [/^\/achats\/.+/, 'Commande'], [/^\/temps/, 'Feuilles de temps'],
 ];
 /** Où mène « Retour » quand on arrive directement sur une page (lien, notification). */
 const PARENT: [RegExp, string][] = [
@@ -138,7 +139,7 @@ const QUICK: { label: string; icon: LucideIcon; to: string; roles?: Role[] }[] =
   { label: 'Photo de reçu', icon: Camera, to: '/depenses/new' },
   { label: 'Photo de job', icon: ImagePlus, to: '/job/new?photo=1', roles: ['employe', 'vendeur'] },
   { label: 'Soumission', icon: ClipboardList, to: '/doc/new?type=quote&format=lignes', roles: ['vendeur'] },
-  { label: 'Devis détaillé', icon: ScrollText, to: '/doc/new?type=quote&format=devis', roles: ['vendeur'] },
+  { label: 'Soumission IA', icon: Sparkles, to: '/soumission-ia', roles: ['vendeur'] },
   { label: 'Nouvelle demande', icon: Inbox, to: '/demandes?new=1', roles: ['vendeur'] },
   { label: 'Facture complète', icon: FileText, to: '/doc/new?type=invoice' },
 ];
@@ -361,6 +362,7 @@ function Shell() {
             <Route path="/job/:id" element={<JobEditor />} />
             <Route path="/express" element={<Express />} />
             <Route path="/dicter" element={<VoiceJob />} />
+            <Route path="/soumission-ia" element={<QuickQuote />} />
             <Route path="/estimateur" element={<Estimator />} />
             <Route path="/metier" element={<Trade />} />
             <Route path="/achats" element={<Orders />} />

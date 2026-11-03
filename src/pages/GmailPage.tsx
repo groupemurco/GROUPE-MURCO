@@ -80,12 +80,11 @@ export default function GmailPage() {
     }
   };
 
-  /** Le courriel du client → l'assistant en fait un devis (client, adresse, travaux). */
+  /** Le courriel du client → « Soumission IA »: client, soumission et prix en un clic. */
   const makeDevis = async (m: MailSummary) => {
     try {
       sessionStorage.setItem(DEVIS_MAIL_KEY, await getMailText(m.id));
-      const client = byEmail.get(emailOf(m.from));
-      nav(`/doc/new?type=quote&format=devis${client ? `&client=${client.id}` : ''}`);
+      nav('/soumission-ia');
     } catch (e) {
       notify(errMsg(e), 'err');
     }

@@ -1578,7 +1578,7 @@ button.agh-ring:hover .fg { stroke: var(--amber-ink); }
 .send-warn span { flex: 1; min-width: 180px; }
 .send-sum { display: grid; gap: 6px; padding: 12px 14px; margin: 10px 0 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
 .send-sum-title { font-weight: 700; margin-bottom: 2px; }
-.send-sum > div:not(.send-sum-title):not(.send-feats) { display: flex; justify-content: space-between; gap: 12px; font-size: 0.92rem; }
+.send-sum > div:not(.send-sum-title):not(.send-feats):not(.send-questions) { display: flex; justify-content: space-between; gap: 12px; font-size: 0.92rem; }
 .send-sum > div span { color: var(--muted); }
 .send-sum > div b { text-align: right; font-weight: 600; }
 .send-sum .tot { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 2px; font-size: 1rem !important; }
@@ -1796,3 +1796,20 @@ button.agh-ring:hover .fg { stroke: var(--amber-ink); }
 .dv-est-calc span { white-space: nowrap; }
 .dv-est-calc .btn { flex: none; min-height: 32px; min-width: 32px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border-color: transparent; background: transparent; color: var(--muted); }
 .dv-est-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 0.92rem; }
+
+/* Soumission IA en un clic */
+.qq { display: grid; gap: 12px; }
+.qq-text { min-height: 170px; font-size: 1.02rem; line-height: 1.5; }
+.qq-example { justify-self: start; }
+.qq-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.qq-actions .qq-go { flex: 1 1 220px; justify-content: center; }
+.qq-how { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.qq-busy { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.qq-spin { width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--amber-soft); border-top-color: var(--amber); animation: qq-spin 0.8s linear infinite; }
+@keyframes qq-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .qq-spin { animation: none; } }
+.send-sum > div.send-questions { display: block; }
+.send-sum > div.send-questions b { display: block; text-align: left; }
+.send-questions { margin: 6px 0 4px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--blue-soft); font-size: 0.9rem; }
+.send-questions ul { margin: 4px 0 0; padding-left: 18px; }
+@media (max-width: 860px) { .qq-actions .btn { flex: 1 1 auto; justify-content: center; } }

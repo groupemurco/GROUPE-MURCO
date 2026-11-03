@@ -10,7 +10,7 @@ import { Modal } from '../components/Modal';
 import { SendEmailModal } from '../components/SendEmailModal';
 import { errMsg, useConfirm, useToast } from '../components/Toast';
 import { db, getSettings, saveSettings, takeNextNumber, type Client, type Doc, type DocStatus, type DocType } from '../lib/db';
-import { DevisEditor, devisPriceItems, starterDevis } from '../components/DevisEditor';
+import { DevisEditor, devisPriceItems, starterDevis, takeQuestions } from '../components/DevisEditor';
 import { directionsLink, embedDirectionsUrl } from '../lib/geo';
 import { useSettings } from '../lib/hooks';
 import { docFileName } from '../lib/pdf';
@@ -22,7 +22,7 @@ import { syncLeadFromDoc } from '../lib/crm';
 import { useSyncState } from '../lib/sync';
 import { smsLink, syncJobFromDoc } from '../lib/agenda';
 import { MediaGallery, ProofPhoto } from '../components/MediaGallery';
-import { Banknote, Check, CircleCheck, CreditCard, Pencil, TriangleAlert, Copy, Download, Eye, Link2, Mail, MessageSquare, Plus, Save, Send, Share2, Star, Trash2, Navigation, RefreshCw, TrendingUp } from 'lucide-react';
+import { Banknote, Check, CircleCheck, CreditCard, Pencil, TriangleAlert, Copy, Download, Eye, Link2, Mail, MessageSquare, Plus, Save, Send, Share2, Star, Trash2, Navigation, RefreshCw, TrendingUp, FileText } from 'lucide-react';
 import { deleteDocCascade, syncTripForDoc } from '../lib/trips';
 import { addDays, METHOD_LABEL, docTotals, downloadBlob, formatDate, km, money, round2, STATUS_LABELS, statusClass, statusLabel, todayISO } from '../lib/utils';
 import { celebrate } from '../lib/feel';
@@ -74,6 +74,10 @@ export default function DocEditor() {
   // Arrivée depuis « Job terminée → envoyer par courriel »: ouvrir l'envoi tout de suite
   const autoSend = useRef(false);
   const openEmailRef = useRef<() => void>(() => undefined);
+  // Arrivée depuis « Soumission IA »: la soumission s'affiche tout de suite, prête à envoyer
+  const autoReady = useRef(false);
+  const readyRef = useRef<() => void>(() => undefined);
+  const [questions] = useState(takeQuestions);
   useEffect(() => {
     if (params.get('envoyer') === 'courriel' && loadedFor === loadKey && !autoSend.current) {
       autoSend.current = true;
@@ -130,6 +134,14 @@ export default function DocEditor() {
     else setDoc((d) => (d ? { ...d, signature: live.signature, viewedAt: live.viewedAt, portalToken: live.portalToken, _u: live._u } : d));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live?._u]);
+
+  const readyClient = doc ? clients.find((c) => c.id === doc.clientId) : undefined;
+  useEffect(() => {
+    if (params.get('pret') === '1' && loadedFor === loadKey && readyClient && !autoReady.current) {
+      autoReady.current = true;
+      readyRef.current();
+    }
+  }, [loadedFor, loadKey, params, readyClient]);
 
   if (!doc || loadedFor !== loadKey) return null;
   const client = clients.find((c) => c.id === doc.clientId);
@@ -234,6 +246,7 @@ export default function DocEditor() {
     if (d) setEmailPdf(await pdfBlob(d));
   };
   openEmailRef.current = () => void openEmail();
+  readyRef.current = () => void preview();
   /** Partage du PDF (texto, Messenger, courriel…) avec la feuille de partage du téléphone. */
   const share = async () => {
     const d = await ready();
@@ -437,7 +450,7 @@ export default function DocEditor() {
           )}
         </div>
         {doc.devis
-          ? <DevisEditor doc={doc} onChange={upd} />
+          ? <DevisEditor doc={doc} onChange={upd} initialQuestions={questions} />
           : <LineItems items={doc.items} services={services} onChange={(items) => upd({ items })} lang={L} />}
         <div className="grid two" style={{ marginTop: 16, alignItems: 'start' }}>
           <details className="doc-extras" open={!isMobile || !!doc.discount || !!doc.deposit || !doc.applyTps !== !s.chargeTaxes}>
@@ -635,6 +648,8 @@ export default function DocEditor() {
           onShare={() => void share()}
           onDownload={() => downloadBlob(readyView.blob, docFileName(readyView.doc, client))}
           onPay={isInvoice && readyView.doc.status !== 'paid' ? () => { setReadyView(null); setShowPay(true); } : undefined}
+          onInvoice={!isInvoice && !readyView.doc.convertedInvoiceId ? () => { setReadyView(null); void convertToInvoice(); } : undefined}
+          questions={questions}
           onSent={() => { if (readyView.doc.status === 'draft') void save({ status: 'sent', sentAt: new Date().toISOString() }, true); }}
           smsText={(link) => `${client?.lang === 'en' ? `Hello ${client?.contact || client?.name || ''}, here is your ${isInvoice ? 'invoice' : 'quote'} ${readyView.doc.number}` : `Bonjour ${client?.contact || client?.name || ''}, voici votre ${kind.toLowerCase()} ${readyView.doc.number}`} (${money(docTotals(readyView.doc, s).balance || docTotals(readyView.doc, s).total)})${link ? ` : ${link}` : '.'}`}
         />
@@ -803,9 +818,9 @@ function ReviewRequestButton({ doc }: { doc: Doc }) {
 }
 
 /** Juste après « Enregistrer »: la facture en PDF, prête à envoyer en un geste. */
-function ReadySheet({ doc, blob, saved, kind, clientName, phone, client, cardPay, total, onClose, onEmail, onShare, onDownload, onPay, onSent, smsText }: {
+function ReadySheet({ doc, blob, saved, kind, clientName, phone, client, cardPay, total, onClose, onEmail, onShare, onDownload, onPay, onInvoice, questions = [], onSent, smsText }: {
   doc: Doc; blob: Blob; saved: boolean; kind: string; clientName: string; phone?: string; client?: Client; cardPay: boolean; total: { total: number; balance: number };
-  onClose: () => void; onEmail: () => void; onShare: () => void; onDownload: () => void; onPay?: () => void; onSent: () => void; smsText: (link: string) => string;
+  onClose: () => void; onEmail: () => void; onShare: () => void; onDownload: () => void; onPay?: () => void; onInvoice?: () => void; questions?: string[]; onSent: () => void; smsText: (link: string) => string;
 }) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
@@ -846,6 +861,7 @@ function ReadySheet({ doc, blob, saved, kind, clientName, phone, client, cardPay
       )}
       <div className="send-sum">
         <div className="send-sum-title">Résumé {isQuote ? 'de la soumission' : 'de la facture'}</div>
+        {questions.length > 0 && <div className="send-questions"><b>À demander au client</b><ul>{questions.map((q) => <li key={q}>{q}</li>)}</ul></div>}
         {address && <div><span>Adresse</span><b>{address}</b></div>}
         <div><span>{doc.devis ? 'Devis' : 'Services'}</span><b>{what}</b></div>
         {doc.deposit ? <div><span>Dépôt reçu</span><b>{money(doc.deposit)}</b></div> : null}
@@ -862,6 +878,7 @@ function ReadySheet({ doc, blob, saved, kind, clientName, phone, client, cardPay
         <button className="btn" onClick={onShare}><Share2 size={17} /> Partager</button>
         <button className="btn" onClick={onDownload}><Download size={17} /> Télécharger</button>
         {onPay && <button className="btn" onClick={onPay}><Banknote size={17} /> Payée</button>}
+        {onInvoice && <button className="btn" onClick={onInvoice}><FileText size={17} /> Créer la facture</button>}
       </div>
       <PdfView blob={blob} />
       <button className="btn block" style={{ marginTop: 12 }} onClick={onClose}>Continuer à modifier</button>

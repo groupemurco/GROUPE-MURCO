@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   blankDevis, cleanItem, contactFromText, devisFromJson, devisFromTemplate, devisFromText, devisLineDescription, devisTitle, estimateTotal, isDevisEmpty, itemCount,
-  priceFromEstimate, sectionTotalText, splitIncludedTaxes, templateKeyFor, type Devis, type PriceRef,
+  priceFromEstimate, sectionTotalText, splitIncludedTaxes, templateKeyFor, templateKeyForText, withoutContact, type Devis, type PriceRef,
 } from '../src/lib/devis.ts';
 
 // L'exemple de Groupe Murco: 5 + 8 + 1 + 1 = 15 ouvertures
@@ -113,4 +113,19 @@ assert.equal(priceFromEstimate(1000, { taxIncluded: true, taxed: true, tpsRate: 
 assert.equal(priceFromEstimate(1000, { taxIncluded: false, taxed: true, tpsRate: 5, tvqRate: 9.975 }), 1000);
 assert.equal(devisFromJson({ estimation: 'non' }, calf, prices).estimate, undefined);
 
-console.log('devis: 57 cas OK');
+// Sans IA, une phrase: le nom, le téléphone et l'adresse deviennent le client; le reste devient la job
+const phrase = 'Denise Tremblay 819 555-0101, 45 rue des Pins à Magog. Calfeutrage de 6 fenêtres au sous-sol, 9 au rez-de-chaussée et la porte de garage.';
+const pc = contactFromText(phrase);
+assert.deepEqual(pc, { name: 'Denise Tremblay', email: undefined, phone: '819 555-0101', address: '45 rue des Pins, Magog' });
+assert.equal(withoutContact(phrase, pc), 'Calfeutrage de 6 fenêtres au sous-sol, 9 au rez-de-chaussée et la porte de garage');
+assert.equal(templateKeyForText(phrase), 'calfeutrage');
+const p2 = 'Pour Jean-Guy Roy, 450-555-1212, 1200 boulevard Saint-Joseph, Drummondville, QC J2B 1A1: peinture du salon et 2 chambres';
+assert.deepEqual(contactFromText(p2), { name: 'Jean-Guy Roy', email: undefined, phone: '450-555-1212', address: '1200 boulevard Saint-Joseph, Drummondville, QC J2B 1A1' });
+assert.equal(withoutContact(p2, contactFromText(p2)), 'peinture du salon et 2 chambres');
+assert.equal(templateKeyForText(p2), 'peinture');
+assert.equal(contactFromText('calfeutrage 12 fenêtres chez Marc Lévesque 418 555 0000').name, 'Marc Lévesque');
+assert.equal(templateKeyForText('installer un spa'), undefined);
+const sansIa = devisFromText(withoutContact(phrase, pc), devisFromTemplate('calfeutrage'));
+assert.equal(sectionTotalText(sansIa.devis.sections[0]), 'Total : 16 ouvertures'); // 6 + 9 + la porte (1)
+
+console.log('devis: 68 cas OK');

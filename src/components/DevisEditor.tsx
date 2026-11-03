@@ -1,35 +1,36 @@
 import { ArrowDown, ArrowUp, BookmarkPlus, Calculator, CircleHelp, Mic, Plus, Sparkles, Square, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { db, saveSettings, type Doc, type LineItem, type Settings } from '../lib/db';
+import { saveSettings, type Doc, type LineItem } from '../lib/db';
 import {
-  blankDevis, contactFromText, DEVIS_TEMPLATES, devisFromTemplate, devisFromText, devisLineDescription, devisTitle, estimateTotal, isDevisEmpty, priceFromEstimate,
-  sectionTotalText, templateKeyFor, type Devis, type DevisDraft, type DevisEstimate, type DevisSection,
+  blankDevis, DEVIS_TEMPLATES, devisFromTemplate, devisTitle, estimateTotal, isDevisEmpty, priceFromEstimate, sectionTotalText,
+  type Devis, type DevisDraft, type DevisEstimate, type DevisSection,
 } from '../lib/devis';
+import { devisPriceItems, draftPrice, jobTitle, keepClientMail, resolveClient, runDevisAi } from '../lib/devisFlow';
 import { useSettings } from '../lib/hooks';
 import { listen, speechSupported, type Listening } from '../lib/speech';
-import { activeTrades } from '../lib/orders';
-import { tradeOf } from '../lib/templates';
 import { docTotals, lineAmount, money, round2 } from '../lib/utils';
 import { Modal } from './Modal';
 import { NumInput } from './NumInput';
 import { errMsg, useConfirm, useToast } from './Toast';
 
-/** La ligne de prix unique d'un devis (le montant sert aux totaux, à la facture et aux rapports). */
-export function devisPriceItems(d: Devis, price: number): LineItem[] {
-  return [{ code: '', description: devisLineDescription(d), unit: 'forfait', quantity: 1, unitPrice: round2(price) }];
-}
+export { devisPriceItems };
 
 /** Devis neuf: vide (l'assistant l'écrit selon la demande du client). */
 export const starterDevis = () => blankDevis();
 
-/** Modèle dont l'assistant imite le style: le dernier enregistré par l'entrepreneur, sinon celui de son métier. */
-function styleDevis(s: Settings): Devis {
-  const own = s.devisTemplates ?? [];
-  return own.length ? own[own.length - 1].devis : devisFromTemplate(templateKeyFor(activeTrades(s)));
-}
-
 /** Courriel envoyé depuis la page Gmail (« Faire un devis »), repris une seule fois par la boîte de l'assistant. */
 export const DEVIS_MAIL_KEY = 'murco.devisMail';
+/** Questions de l'assistant (« À demander au client ») transmises par la page « Soumission IA ». */
+export const DEVIS_QUESTIONS_KEY = 'murco.devisQuestions';
+export function takeQuestions(): string[] {
+  try {
+    const q = JSON.parse(sessionStorage.getItem(DEVIS_QUESTIONS_KEY) ?? '[]');
+    sessionStorage.removeItem(DEVIS_QUESTIONS_KEY);
+    return Array.isArray(q) ? q.filter((x) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 function takeMail(): string {
   try {
     const t = sessionStorage.getItem(DEVIS_MAIL_KEY) ?? '';
@@ -40,13 +41,11 @@ function takeMail(): string {
   }
 }
 
-const norm = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
-const digits = (x?: string) => (x ?? '').replace(/\D/g, '').slice(-10);
 
 const docPrice = (doc: Pick<Doc, 'items'>) => round2(doc.items.reduce((a, it) => a + lineAmount(it), 0));
 
 /** Soumission rédigée: ouvrages visés, travaux inclus, prix forfaitaire, conditions et signature. */
-export function DevisEditor({ doc, onChange }: { doc: Doc; onChange: (patch: Partial<Doc>) => void }) {
+export function DevisEditor({ doc, onChange, initialQuestions = [] }: { doc: Doc; onChange: (patch: Partial<Doc>) => void; initialQuestions?: string[] }) {
   const s = useSettings();
   const notify = useToast();
   const ask = useConfirm();
@@ -56,47 +55,26 @@ export function DevisEditor({ doc, onChange }: { doc: Doc; onChange: (patch: Par
   const [saving, setSaving] = useState<string | null>(null);
   const [mail] = useState(takeMail);
   const [aiOpen, setAiOpen] = useState(() => !!mail || isDevisEmpty(d));
-  const [questions, setQuestions] = useState<string[]>([]);
+  const [questions, setQuestions] = useState<string[]>(initialQuestions);
   const saved = s.devisTemplates ?? [];
 
   /** Résultat de l'assistant: devis, prix, adresse; le client est retrouvé (courriel, cell, nom) ou créé. */
   const applyDraft = async (r: DevisDraft, text: string, failed?: string) => {
-    // Prix: celui qui est dit, sinon l'estimation de l'assistant avec tes prix, sinon on garde le prix actuel
-    const taxIncluded = r.taxIncluded ?? doc.taxIncluded;
-    const est = r.estimate ? estimateTotal(r.estimate.lines) : 0;
-    const guessed = !r.price && est > 0 ? priceFromEstimate(est, { taxIncluded, taxed: doc.applyTps || doc.applyTvq, tpsRate: s.tpsRate, tvqRate: s.tvqRate }) : 0;
-    const patch: Partial<Doc> = { devis: r.devis, items: devisPriceItems(r.devis, r.price ?? (guessed || price)) };
+    const { price: next, guessed } = draftPrice(r, doc, s, price);
+    const patch: Partial<Doc> = { devis: r.devis, items: devisPriceItems(r.devis, next) };
     if (r.estimate) patch.estimate = r.estimate;
     if (r.taxIncluded !== undefined) patch.taxIncluded = r.taxIncluded;
     if (r.address && !doc.jobAddress) patch.jobAddress = r.address;
-    const what = r.devis.heading.replace(/^soumission\s+(de\s+|d[’']|pour\s+)?/i, '').trim();
-    if (!doc.title.trim() && what) patch.title = what.charAt(0).toUpperCase() + what.slice(1);
+    if (!doc.title.trim() && jobTitle(r.devis)) patch.title = jobTitle(r.devis);
     let clientId = doc.clientId;
     let who = '';
-    const c = r.client;
-    if (!clientId && c && (c.name || c.email || c.phone)) {
-      const all = await db.clients.toArray();
-      const found = all.find((x) => c.email && x.email.toLowerCase() === c.email)
-        ?? all.find((x) => c.phone && digits(x.phone).length === 10 && digits(x.phone) === digits(c.phone))
-        ?? all.find((x) => c.name && norm(x.name) === norm(c.name));
-      if (found) {
-        clientId = found.id!;
-        // On complète la fiche avec ce qui manquait
-        const fill = { email: found.email || c.email || '', phone: found.phone || c.phone || '', address: found.address || c.address || '' };
-        if (fill.email !== found.email || fill.phone !== found.phone || fill.address !== found.address) await db.clients.update(clientId, fill);
-        who = `Client: ${found.name}.`;
-      } else {
-        const name = c.name || c.contact || c.email || 'Nouveau client';
-        clientId = await db.clients.add({ name, contact: c.contact ?? '', email: c.email ?? '', phone: c.phone ?? '', address: c.address || r.address || '', notes: '', createdAt: new Date().toISOString() });
-        who = `Nouveau client ajouté: ${name}.`;
-      }
-      patch.clientId = clientId;
-    } else if (!clientId) who = 'Choisis le client en haut.';
-    // Le courriel du client est gardé dans sa conversation
-    const body = text.trim().slice(0, 8000);
-    if (r.fromClient && clientId && !(await db.messages.where('clientId').equals(clientId).filter((m) => m.text === body).count())) {
-      await db.messages.add({ clientId, dir: 'in', channel: 'courriel', text: body, at: new Date().toISOString() });
+    if (!clientId) {
+      const c = await resolveClient(r.client, r.address);
+      clientId = c.id ?? 0;
+      who = c.id ? c.who : 'Choisis le client en haut.';
+      if (c.id) patch.clientId = c.id;
     }
+    if (r.fromClient && clientId) await keepClientMail(clientId, text);
     onChange(patch);
     setQuestions(r.questions ?? []);
     if (failed) return notify(`${failed} ${who}`.trim(), 'err');
@@ -268,24 +246,10 @@ function DevisAi({ doc, initial, canClose, onClose, onDone }: { doc: Doc; initia
     if (t.length < 4) return notify('Colle le courriel du client ou dis ce qu’il faut faire.', 'err');
     rec.current?.stop();
     setBusy(true);
-    let r: DevisDraft;
+    const { draft: r, failed: why, isMail } = await runDevisAi(t, s, { current, clientId: doc.clientId || undefined });
     let failed: string | undefined;
-    try {
-      const { aiDevis } = await import('../lib/ai');
-      const trades = activeTrades(s).map((k) => tradeOf(k)?.label).filter(Boolean).join(', ');
-      const known = doc.clientId ? (await db.clients.get(doc.clientId))?.name : undefined;
-      const prices = (await db.services.orderBy('order').toArray()).map((x) => ({ code: x.code, name: x.name, unit: x.unit, price: x.price, minimum: x.minimum }));
-      r = await aiDevis({ company: s.companyName, owner: s.ownerName, trades, text: t, style: styleDevis(s), current, clientKnown: known, prices, model: s.aiModel || undefined });
-    } catch (e) {
-      // Sans l'assistant: un courriel → on reprend au moins les coordonnées; une phrase → chaque morceau devient un point
-      const isMail = /@|\n.*\n/.test(t) && t.length > 120;
-      r = isMail
-        ? { devis: current ?? doc.devis ?? blankDevis(), client: contactFromText(t, { email: s.email, phone: s.phone }), fromClient: true }
-        : devisFromText(t, current ?? styleDevis(s));
-      const why = `L’assistant n’a pas répondu (${errMsg(e).slice(0, 70)}).`;
-      if (isMail) failed = `${why} J’ai repris les coordonnées du client: réessaie dans un moment ou écris le devis.`;
-      else notify(`${why} Fait sans lui: vérifie le texte.`, 'err');
-    }
+    if (why && isMail) failed = `${why} J’ai repris les coordonnées du client: réessaie dans un moment ou écris le devis.`;
+    else if (why) notify(`${why} Fait sans lui: vérifie le texte.`, 'err');
     try {
       await onDone(r, t, failed);
     } catch (e) {
