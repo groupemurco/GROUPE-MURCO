@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AddressInput } from '../components/AddressInput';
 import { ClientPicker } from '../components/ClientPicker';
 import { ClientFormModal } from '../components/ClientForm';
-import { companyTexts, dateFor, docLangOf, moneyFor } from '../lib/docLang';
+import { clientDocMessage, companyTexts, dateFor, docLangOf, firstName, greeting, isEvening, moneyFor } from '../lib/docLang';
 import { emptyLine, LineItems } from '../components/LineItems';
 import { Modal } from '../components/Modal';
 import { SendEmailModal } from '../components/SendEmailModal';
@@ -357,14 +357,14 @@ export default function DocEditor() {
 
   const emailBody = () => {
     if (L === 'en') {
-      const hi = `Hello ${client?.contact || client?.name || ''},`;
+      const hi = `${greeting('en')}${firstName(client) ? ` ${firstName(client)}` : ''},`;
       const tx = companyTexts(s, 'en');
       const lines = isInvoice
         ? [hi, '', `Please find attached invoice ${doc.number}${doc.title ? ` for “${doc.title}”` : ''}, for ${moneyFor(tot.balance, 'en')}.`, `Due date: ${dateFor(doc.dueDate, 'en')}.`, '', tx.paymentInstructions]
         : [hi, '', `As discussed, here is our quote ${doc.number}${doc.title ? ` for “${doc.title}”` : ''}, for ${moneyFor(tot.total, 'en')} (taxes included).`, `It is valid until ${dateFor(doc.dueDate, 'en')}.`, '', 'Feel free to contact me with any questions.'];
-      return [...lines, '', 'Thank you and have a great day!', '', s.emailSignature || s.companyName, s.phone].filter((x) => x !== undefined).join('\n');
+      return [...lines, '', `Thank you and have a great ${isEvening() ? 'evening' : 'day'}!`, '', s.emailSignature || s.companyName, s.phone].filter((x) => x !== undefined).join('\n');
     }
-    const hello = `Bonjour ${client?.contact || client?.name || ''},`;
+    const hello = `${greeting('fr')}${firstName(client) ? ` ${firstName(client)}` : ''},`;
     const lines = isInvoice
       ? [
           hello,
@@ -382,7 +382,7 @@ export default function DocEditor() {
           '',
           'N’hésitez pas à me contacter pour toute question.',
         ];
-    return [...lines, '', 'Merci et bonne journée!', '', s.emailSignature || s.companyName, s.phone].filter((x) => x !== undefined).join('\n');
+    return [...lines, '', `Merci et bonne ${isEvening() ? 'soirée' : 'journée'}!`, '', s.emailSignature || s.companyName, s.phone].filter((x) => x !== undefined).join('\n');
   };
 
   return (
@@ -651,7 +651,7 @@ export default function DocEditor() {
           onInvoice={!isInvoice && !readyView.doc.convertedInvoiceId ? () => { setReadyView(null); void convertToInvoice(); } : undefined}
           questions={questions}
           onSent={() => { if (readyView.doc.status === 'draft') void save({ status: 'sent', sentAt: new Date().toISOString() }, true); }}
-          smsText={(link) => `${client?.lang === 'en' ? `Hello ${client?.contact || client?.name || ''}, here is your ${isInvoice ? 'invoice' : 'quote'} ${readyView.doc.number}` : `Bonjour ${client?.contact || client?.name || ''}, voici votre ${kind.toLowerCase()} ${readyView.doc.number}`} (${money(docTotals(readyView.doc, s).balance || docTotals(readyView.doc, s).total)})${link ? ` : ${link}` : '.'}`}
+          smsText={(link) => clientDocMessage({ kind: readyView.doc.type, number: readyView.doc.number, amount: docTotals(readyView.doc, s).balance || docTotals(readyView.doc, s).total, client, company: s.companyName, owner: s.ownerName, lang: L, link: link || undefined, job: readyView.doc.title, address: readyView.doc.jobAddress || client?.address })}
         />
       )}
       {pdfUrl && (
@@ -713,10 +713,9 @@ function PortalButton({ doc }: { doc: Doc }) {
     }
   };
   const kind = doc.type === 'invoice' ? 'facture' : 'soumission';
-  const en = docLangOf(doc, client) === 'en';
-  const text = en
-    ? `Hello ${client?.contact || client?.name || ''}, here is your ${doc.type === 'invoice' ? 'invoice' : 'quote'} ${doc.number}${doc.type === 'quote' ? ' — you can accept it online' : ''}:`
-    : `Bonjour ${client?.contact || client?.name || ''}, voici votre ${kind} ${doc.number}${doc.type === 'quote' ? ' — vous pouvez l’accepter en ligne' : ''}:`;
+  const s = useSettings();
+  const tt = docTotals(doc, s);
+  const msg = (link?: string) => clientDocMessage({ kind: doc.type, number: doc.number, amount: tt.balance || tt.total, client, company: s.companyName, owner: s.ownerName, lang: docLangOf(doc, client), link, job: doc.title, address: doc.jobAddress || client?.address });
   return (
     <>
       <button className="btn" onClick={open} disabled={busy || st.status === 'off'} title={st.status === 'off' ? 'Active la synchronisation pour utiliser le lien client' : 'Lien à envoyer au client'}>
@@ -732,9 +731,9 @@ function PortalButton({ doc }: { doc: Doc }) {
             <button className="btn" onClick={async () => { try { await navigator.clipboard.writeText(link); notify('Lien copié'); } catch { notify('Sélectionne et copie le lien.', 'err'); } }}><Copy size={16} /></button>
           </div>
           <div className="row" style={{ marginTop: 12 }}>
-            {(isNative() || !!navigator.share) && <button className="btn accent" onClick={() => void shareLink(`${doc.number}`, text, link)}><Share2 size={16} /> Partager</button>}
-            {client?.phone && <a className="btn" href={smsLink(client.phone, `${text} ${link}`)}>Texto</a>}
-            <a className="btn" href={`mailto:${client?.email ?? ''}?subject=${encodeURIComponent(`${kind[0].toUpperCase()}${kind.slice(1)} ${doc.number}`)}&body=${encodeURIComponent(`${text}\n${link}`)}`}>Courriel</a>
+            {(isNative() || !!navigator.share) && <button className="btn accent" onClick={() => void shareLink(`${doc.number}`, msg(), link)}><Share2 size={16} /> Partager</button>}
+            {client?.phone && <a className="btn" href={smsLink(client.phone, msg(link))}>Texto</a>}
+            <a className="btn" href={`mailto:${client?.email ?? ''}?subject=${encodeURIComponent(`${kind[0].toUpperCase()}${kind.slice(1)} ${doc.number} — ${s.companyName}`)}&body=${encodeURIComponent(msg(link))}`}>Courriel</a>
           </div>
           {doc.viewedAt && <div className="notice info" style={{ marginTop: 12 }}>Vu par le client le {new Date(doc.viewedAt).toLocaleString('fr-CA')}</div>}
           {doc.signature && <div className="notice ok">Acceptée et signée par {doc.signature.name} le {new Date(doc.signature.at).toLocaleString('fr-CA')}</div>}
@@ -824,6 +823,8 @@ function ReadySheet({ doc, blob, saved, kind, clientName, phone, client, cardPay
 }) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
+  // Le message du texto, personnalisé pour ce client et modifiable avant l'envoi (le lien s'ajoute tout seul)
+  const [custom, setCustom] = useState(() => smsText(''));
   const text = async () => {
     if (!phone) return;
     setBusy(true);
@@ -835,7 +836,8 @@ function ReadySheet({ doc, blob, saved, kind, clientName, phone, client, cardPay
     }
     onSent();
     setBusy(false);
-    window.location.href = smsLink(phone, smsText(link));
+    const typed = custom.trim();
+    window.location.href = smsLink(phone, typed === smsText('').trim() ? smsText(link) : `${typed}${link ? `\n${link}` : ''}`);
   };
   const [editClient, setEditClient] = useState(false);
   const isQuote = doc.type === 'quote';
@@ -871,6 +873,12 @@ function ReadySheet({ doc, blob, saved, kind, clientName, phone, client, cardPay
           {cardPay ? <span><Check size={14} /> Paiement par carte dans le lien</span> : <span className="muted"><CreditCard size={14} /> Paiement par carte: à activer dans Paramètres</span>}
         </div>
       </div>
+      {phone && (
+        <label className="field ready-msg">Message du texto (tu peux le changer)
+          <textarea rows={4} value={custom} onChange={(e) => setCustom(e.target.value)} />
+          <small className="muted">Le lien vers {isQuote ? 'la soumission' : 'la facture'} est ajouté tout seul.</small>
+        </label>
+      )}
       <div className="ready-actions">
         {phone && <button className="btn accent" disabled={busy} onClick={() => void text()}><MessageSquare size={17} /> Texto au client</button>}
         <button className={`btn ${phone ? '' : 'accent'}`} onClick={onEmail}><Mail size={17} /> Courriel</button>

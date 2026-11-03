@@ -56,3 +56,60 @@ export function companyTexts(s: Settings, l: DocLang) {
     invoiceConditions: s.invoiceConditionsEn || 'Payment due by the date shown.',
   };
 }
+
+/** Prénom pour saluer (« Denise » pour « Denise Tremblay » ou « Mme Denise Tremblay »). */
+export const firstName = (c?: Pick<Client, 'name' | 'contact'>) => (c?.contact || c?.name || '').replace(/^(mme|m\.|madame|monsieur)\s+/i, '').trim().split(/\s+/)[0] ?? '';
+
+/** « vos travaux de calfeutrage » / « vos travaux d’isolation » (la description de la job). */
+function jobPhrase(title: string, lang: DocLang): string {
+  const t = title.trim().replace(/[.!]+$/, '');
+  if (!t) return '';
+  const low = t.charAt(0).toLowerCase() + t.slice(1);
+  if (lang === 'en') return `your ${low} work`;
+  if (/^(travaux|job|projet|contrat)\b/i.test(t)) return `vos ${low}`;
+  return `vos travaux ${/^[aeiouyhéèêàâîôû]/i.test(low) ? 'd’' : 'de '}${low}`;
+}
+
+/** Le soir (17 h et plus, ou la nuit): « Bonsoir » et « bonne soirée ». */
+export const isEvening = (now = new Date()) => now.getHours() >= 17 || now.getHours() < 4;
+export const greeting = (lang: DocLang, now = new Date()) => (lang === 'en' ? (isEvening(now) ? 'Good evening' : 'Hello') : isEvening(now) ? 'Bonsoir' : 'Bonjour');
+
+/**
+ * Message personnalisé au client (texto, courriel, partage), dans le style de Groupe Murco:
+ * « Bonsoir Léo, voici la soumission pour vos travaux de calfeutrage.
+ *   Vous pouvez la consulter et l’accepter en ligne : <lien>
+ *
+ *   N’hésitez pas si vous avez des questions !
+ *
+ *   Merci et bonne soirée,
+ *   Groupe Murco »
+ * Sans lien (partage où le lien est ajouté à part), la ligne du lien se termine par un point.
+ */
+export function clientDocMessage(o: { kind: 'invoice' | 'quote'; number?: string; amount?: number; client?: Pick<Client, 'name' | 'contact'>; company: string; owner?: string; lang: DocLang; link?: string; job?: string; address?: string; now?: Date }): string {
+  const who = firstName(o.client);
+  const quote = o.kind === 'quote';
+  const job = jobPhrase(o.job ?? '', o.lang);
+  const evening = isEvening(o.now);
+  const hi = greeting(o.lang, o.now);
+  const sign = o.company.trim() || o.owner?.trim() || '';
+  if (o.lang === 'en') {
+    return [
+      `${hi}${who ? ` ${who}` : ''}, here is the ${quote ? 'quote' : 'invoice'}${job ? ` for ${job}` : ''}.`,
+      `You can view ${quote ? 'and accept it' : 'and pay it'} online${o.link ? `: ${o.link}` : '.'}`,
+      '',
+      'Feel free to reach out if you have any questions!',
+      '',
+      `Thank you and have a great ${evening ? 'evening' : 'day'},`,
+      sign,
+    ].join('\n').trim();
+  }
+  return [
+    `${hi}${who ? ` ${who}` : ''}, voici la ${quote ? 'soumission' : 'facture'}${job ? ` pour ${job}` : ''}.`,
+    `Vous pouvez la consulter et ${quote ? 'l’accepter' : 'la payer'} en ligne${o.link ? ` : ${o.link}` : '.'}`,
+    '',
+    'N’hésitez pas si vous avez des questions !',
+    '',
+    `Merci et bonne ${evening ? 'soirée' : 'journée'},`,
+    sign,
+  ].join('\n').trim();
+}

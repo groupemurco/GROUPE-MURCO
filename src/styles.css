@@ -1816,3 +1816,5 @@ button.agh-ring:hover .fg { stroke: var(--amber-ink); }
 
 /* Aperçu + PDF sur les lignes de liste */
 .pv-group { display: inline-flex; gap: 6px; white-space: nowrap; vertical-align: middle; }
+.ready-msg { margin: 0 0 12px; }
+.ready-msg textarea { min-height: 96px; line-height: 1.4; font-size: 0.95rem; }
