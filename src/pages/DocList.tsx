@@ -151,7 +151,7 @@ export default function DocList({ type }: { type: DocType }) {
                       <span className="row" style={{ gap: 6, marginTop: 3 }}>
                         <span className={statusClass(d)}>{statusLabel(d)}</span>
                         {late && <span className="badge red">En retard</span>}
-                        <PreviewButton doc={d} client={c} />
+                        <PreviewButton doc={d} client={c} compact />
                       </span>
                     </span>
                     <span className="doc-amt">

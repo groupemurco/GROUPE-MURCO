@@ -22,7 +22,7 @@ import { syncLeadFromDoc } from '../lib/crm';
 import { useSyncState } from '../lib/sync';
 import { smsLink, syncJobFromDoc } from '../lib/agenda';
 import { MediaGallery, ProofPhoto } from '../components/MediaGallery';
-import { Banknote, Check, CircleCheck, CreditCard, Pencil, TriangleAlert, Copy, Download, Eye, Link2, Mail, MessageSquare, Plus, Save, Send, Share2, Star, Trash2, Navigation, RefreshCw, TrendingUp, FileText } from 'lucide-react';
+import { Banknote, Check, CircleCheck, CreditCard, Pencil, TriangleAlert, Copy, Download, Eye, Link2, Mail, MessageSquare, Plus, Save, Share2, Star, Trash2, Navigation, RefreshCw, TrendingUp, FileText } from 'lucide-react';
 import { deleteDocCascade, syncTripForDoc } from '../lib/trips';
 import { addDays, METHOD_LABEL, docTotals, downloadBlob, formatDate, km, money, round2, STATUS_LABELS, statusClass, statusLabel, todayISO } from '../lib/utils';
 import { celebrate } from '../lib/feel';
@@ -228,10 +228,21 @@ export default function DocEditor() {
   const pdfBlob = (d: Doc) => makeDocPdf(d, client, s);
   const ready = async () => (dirty || !doc.id ? await save({}, true) : doc);
 
-  /** Enregistrer → la facture s'affiche tout de suite, prête à envoyer. */
-  const saveAndShow = async () => {
-    const d = await save();
-    if (d) setReadyView({ doc: d, blob: await pdfBlob(d), saved: true });
+  /** Texto au client en un geste: lien en ligne + message personnalisé (prénom, job, Bonjour/Bonsoir). */
+  const sendText = async () => {
+    const d = await ready();
+    if (!d) return;
+    const c = clients.find((x) => x.id === d.clientId);
+    if (!c?.phone) return notify('Ajoute le cellulaire du client pour lui envoyer un texto (fiche du client).', 'err');
+    let link = '';
+    try {
+      link = await publishPortal(d.id!);
+    } catch {
+      notify('Texto sans lien en ligne: active la synchronisation pour que le client puisse voir et accepter en ligne.', 'err');
+    }
+    if (d.status === 'draft') await save({ status: 'sent', sentAt: new Date().toISOString() }, true);
+    const tt = docTotals(d, s);
+    window.location.href = smsLink(c.phone, clientDocMessage({ kind: d.type, number: d.number, amount: tt.balance || tt.total, client: c, company: s.companyName, owner: s.ownerName, lang: docLangOf(d, c), link: link || undefined, job: d.title, address: d.jobAddress || c.address }));
   };
   const preview = async () => {
     const d = await ready();
@@ -393,15 +404,6 @@ export default function DocEditor() {
           <h1>
             {kind} {doc.number || '(nouvelle)'} {doc.id && <span className={statusClass(doc)} style={{ verticalAlign: 'middle' }}>{statusLabel(doc)}</span>}
           </h1>
-        </div>
-        <div className="actions editor-bar">
-          <div className="eb-total hide-desktop"><small>Total</small><b>{money(tot.total)}</b></div>
-          <button className="btn accent" onClick={() => void saveAndShow()} disabled={busy}><Save size={17} /> {busy ? '…' : 'Enregistrer'}</button>
-          <button className="btn primary hide-mobile" onClick={openEmail}><Send size={17} /> Envoyer</button>
-          {doc.id && <span className="hide-mobile"><PortalButton doc={doc} /></span>}
-          <button className="btn hide-mobile" onClick={share}><Share2 size={17} /> Partager</button>
-          <button className="btn icon-mobile" onClick={download} aria-label="Télécharger le PDF" title="Télécharger le PDF"><Download size={17} /> <span className="hide-mobile">PDF</span></button>
-          <button className="btn icon-mobile" onClick={preview} aria-label="Aperçu"><Eye size={17} /> <span className="hide-mobile">Aperçu</span></button>
         </div>
       </div>
 
@@ -605,6 +607,22 @@ export default function DocEditor() {
         </div>
       </div>
 
+
+      <div className="doc-bar">
+        <div className="db-total">
+          <small>{doc.taxIncluded && (doc.applyTps || doc.applyTvq) ? 'Total (taxes incl.)' : 'Total'}</small>
+          <b>{money(tot.total)}</b>
+          <span className={`db-state ${dirty || !doc.id ? 'todo' : 'ok'}`}>{dirty || !doc.id ? 'À enregistrer' : <><Check size={13} /> Enregistré</>}</span>
+        </div>
+        <div className="db-actions">
+          <button className={`btn ${dirty || !doc.id ? 'accent' : ''}`} onClick={() => void save()} disabled={busy}><Save size={17} /> {busy ? '…' : 'Enregistrer'}</button>
+          <button className={`btn ${dirty || !doc.id ? '' : 'accent'}`} onClick={() => void sendText()} disabled={busy}><MessageSquare size={17} /> Texto</button>
+          <button className="btn hide-mobile" onClick={openEmail}><Mail size={17} /> Courriel</button>
+          {doc.id && <span className="hide-mobile"><PortalButton doc={doc} /></span>}
+          <button className="btn icon-mobile" onClick={download} aria-label="Télécharger le PDF" title="Télécharger le PDF"><Download size={17} /> <span className="hide-mobile">PDF</span></button>
+          <button className="btn icon-mobile" onClick={preview} aria-label="Aperçu" title="Aperçu (et toutes les façons d’envoyer)"><Eye size={17} /> <span className="hide-mobile">Aperçu</span></button>
+        </div>
+      </div>
 
       {emailPdf && doc.id && (
         <SendEmailModal

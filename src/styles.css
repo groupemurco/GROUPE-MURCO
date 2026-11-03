@@ -1815,6 +1815,36 @@ button.agh-ring:hover .fg { stroke: var(--amber-ink); }
 @media (max-width: 860px) { .qq-actions .btn { flex: 1 1 auto; justify-content: center; } }
 
 /* Aperçu + PDF sur les lignes de liste */
-.pv-group { display: inline-flex; gap: 6px; white-space: nowrap; vertical-align: middle; }
+.pv-group { display: inline-flex; flex-wrap: nowrap; gap: 6px; white-space: nowrap; vertical-align: middle; }
+.pv-group .pv-send { background: var(--amber); border-color: var(--amber); color: var(--on-amber); }
 .ready-msg { margin: 0 0 12px; }
 .ready-msg textarea { min-height: 96px; line-height: 1.4; font-size: 0.95rem; }
+.doc-card .pv-group { flex-wrap: nowrap; }
+.doc-card .pv-group .btn:not(.pv-send) { min-width: 36px; justify-content: center; padding-inline: 8px; }
+
+/* Soumission / facture: barre d'actions toujours visible en bas */
+.doc-bar {
+  position: sticky; bottom: 12px; z-index: 30; margin-top: 18px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 12px 10px 16px; border-radius: 16px; border: 1px solid var(--line);
+  background: var(--surface); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+}
+.doc-bar .db-total { display: grid; line-height: 1.1; }
+.doc-bar .db-total small { font-size: 0.66rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
+.doc-bar .db-total b { font-family: var(--font-display); font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.doc-bar .db-state { display: inline-flex; align-items: center; gap: 3px; font-size: 0.74rem; font-weight: 650; margin-top: 2px; }
+.doc-bar .db-state.ok { color: var(--green); }
+.doc-bar .db-state.todo { color: var(--amber-ink); }
+.doc-bar .db-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.doc-bar .db-actions .btn { min-height: 44px; }
+@media (max-width: 860px) {
+  .doc-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; margin: 0; border-radius: 0; border-width: 1px 0 0;
+    padding: 10px 12px calc(10px + var(--sab)); gap: 8px; flex-wrap: nowrap; box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.08); z-index: 40;
+  }
+  .doc-bar .db-total { display: none; }
+  .doc-bar .db-actions { flex: 1; margin: 0; flex-wrap: nowrap; gap: 8px; }
+  .doc-bar .db-actions .btn { min-height: 48px; justify-content: center; }
+  .doc-bar .db-actions > .btn:not(.icon-mobile) { flex: 1 1 0; font-size: 1rem; }
+  .doc-bar .icon-mobile { width: 48px; flex: none; padding: 0; }
+}
