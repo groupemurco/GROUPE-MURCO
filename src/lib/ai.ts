@@ -35,11 +35,30 @@ export interface AiOrder {
   clientId?: number;
   neededBy?: string;
 }
+/** Changement à apporter à la fiche d'un client (seulement les champs dits). */
+export interface AiClientEdit {
+  clientId: number;
+  name?: string;
+  contact?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  notes?: string;
+}
 export type AiResult =
   | { kind: 'say'; text: string }
   | { kind: 'order'; order: AiOrder; text: string }
   | { kind: 'doc'; doc: AiDoc; text: string }
+  | { kind: 'client'; edit: AiClientEdit; text: string }
   | { kind: 'intent'; intent: Intent; text: string };
+
+/** Appel de modifier_client → changement à confirmer (null si le client ou les champs manquent). */
+export function toClientEdit(a: Record<string, unknown>): AiClientEdit | null {
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  const edit: AiClientEdit = { clientId: Number(a.client_id), name: str(a.nom), contact: str(a.contact), phone: str(a.telephone), email: str(a.courriel), address: str(a.adresse), notes: str(a.notes) };
+  if (!Number.isFinite(edit.clientId)) return null;
+  return Object.entries(edit).some(([k, v]) => k !== 'clientId' && v !== undefined) ? edit : null;
+}
 
 export const TOOLS: FunctionDeclaration[] = [
   {
@@ -72,6 +91,22 @@ export const TOOLS: FunctionDeclaration[] = [
         }),
       },
       optionalProperties: ['client_id', 'nouveau_client_nom', 'telephone', 'adresse', 'date', 'heure'],
+    }),
+  },
+  {
+    name: 'modifier_client',
+    description: 'Modifie la fiche d’un client existant (corriger son nom, téléphone, courriel, adresse, contact ou notes). Cherche-le d’abord avec chercher_client. Ne mets que ce qui change. L’app affiche le changement pour confirmation.',
+    parameters: Schema.object({
+      properties: {
+        client_id: Schema.number({ description: 'id du client trouvé avec chercher_client' }),
+        nom: Schema.string({ description: 'Nouveau nom complet' }),
+        contact: Schema.string({ description: 'Personne contact' }),
+        telephone: Schema.string(),
+        courriel: Schema.string(),
+        adresse: Schema.string({ description: 'Nouvelle adresse (numéro, rue, ville)' }),
+        notes: Schema.string({ description: 'Notes (code de porte, chien…): remplace les notes actuelles' }),
+      },
+      optionalProperties: ['nom', 'contact', 'telephone', 'courriel', 'adresse', 'notes'],
     }),
   },
   {
@@ -131,7 +166,9 @@ Ta job: comprendre ce qu’il veut et le préparer avec les fonctions. Il confir
 - Des matériaux à acheter (« commande », « faut que j’achète », « appelle le fournisseur »): appelle commander_fournisseur.
 - Dès que tu as l’essentiel, appelle preparer_document (ou commande_rapide pour le reste) sans redemander de confirmation.
 - Tu es AUSSI une assistante personnelle complète, pas seulement pour les factures: réponds directement à toute question (calcul de quantités de matériaux comme la peinture, le béton, les bardeaux, conversions, prix approximatifs, conseils de métier, idées, rédaction de messages). Donne le résultat tout de suite avec tes hypothèses courantes (ex.: un gallon de peinture couvre environ 350 pi², compte 2 couches; arrondis à l’achat), sans demander la permission. Ne refuse jamais une demande ordinaire.
-- Si on te demande une action de l’app que tu n’as pas (ex.: modifier une fiche), dis-le simplement et propose l’étape la plus proche.
+- « Planifie-moi telle job tel jour »: preparer_document type job (travaux + date). « Je dois aller faire une estimation / voir ça à telle adresse »: preparer_document type visite (client, adresse, date). Une soumission à envoyer: type soumission.
+- Corriger ou changer un client (nom, téléphone, courriel, adresse, notes): chercher_client puis modifier_client avec seulement ce qui change.
+- Si on te demande une action de l’app que tu n’as pas (ex.: supprimer une fiche), dis-le simplement et propose l’étape la plus proche.
 - Réponds en français du Québec, court (une à trois phrases), sans liste ni markdown: tes réponses sont lues à voix haute.
 
 Liste de prix:
@@ -240,6 +277,14 @@ export class AiAssistant {
             },
           };
           answers.push({ functionResponse: { name: c.name, response: { resultat: 'Résumé affiché; l’utilisateur va le vérifier et confirmer.' } } });
+        } else if (c.name === 'modifier_client') {
+          const edit = toClientEdit(a);
+          if (edit) {
+            action = { kind: 'client', text: say, edit };
+            answers.push({ functionResponse: { name: c.name, response: { resultat: 'Changement affiché; l’utilisateur va le vérifier et confirmer.' } } });
+          } else {
+            answers.push({ functionResponse: { name: c.name, response: { erreur: 'Il faut client_id (de chercher_client) et au moins un champ à changer.' } } });
+          }
         } else if (c.name === 'commander_fournisseur') {
           const arts = Array.isArray(a.articles) ? (a.articles as Record<string, unknown>[]) : [];
           action = {

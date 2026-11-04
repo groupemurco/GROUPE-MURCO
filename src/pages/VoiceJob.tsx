@@ -228,6 +228,32 @@ export default function VoiceJob() {
         const d = fromAi(r.doc);
         proceed(d);
         if (r.doc.address) autoAddress(r.doc.address);
+      } else if (r.kind === 'client') {
+        setDraft(null);
+        const { clientId, ...fields } = r.edit;
+        const cur = clients.find((x) => x.id === clientId);
+        if (!cur) {
+          notify('Client introuvable: dis-moi son nom.', 'err');
+          return;
+        }
+        const labels: Record<string, string> = { name: 'Nom', contact: 'Contact', phone: 'Téléphone', email: 'Courriel', address: 'Adresse', notes: 'Notes' };
+        const changes = Object.entries(fields).filter(([, v]) => v !== undefined) as [keyof typeof labels, string][];
+        const summary = changes.map(([k, v]) => `${labels[k]}: ${v}`).join(' · ');
+        const proposal: Proposal = {
+          title: `Modifier ${cur.name}?`,
+          say: r.text || `Je change la fiche de ${cur.name}: ${summary}. Confirme.`,
+          confirm: {
+            label: 'Confirmer le changement',
+            run: async () => {
+              const patch: Record<string, unknown> = Object.fromEntries(changes);
+              if (fields.address) patch.geo = undefined; // nouvelle adresse: la position se recalcule
+              await db.clients.update(clientId, patch);
+              return { title: 'Client modifié', say: `Fiche de ${fields.name ?? cur.name} mise à jour.`, links: [{ label: 'Ouvrir la fiche', to: `/clients/${clientId}` }], done: true };
+            },
+          },
+        };
+        setProp(proposal);
+        say(proposal.say);
       } else if (r.kind === 'order') {
         setDraft(null);
         const supplier = r.order.supplier;

@@ -3,7 +3,7 @@
 // passent par les mêmes fonctions que l'assistant écrit et sont toujours confirmées à l'écran.
 import { getAI, getLiveGenerativeModel, ResponseModality, startAudioConversation, VertexAIBackend, type AudioConversationController, type FunctionCall, type FunctionResponse } from 'firebase/ai';
 import type { Intent, IntentKind } from './assistant';
-import { findClients, systemPrompt, TOOLS, type AiClient, type AiDoc, type AiResult, type AiService } from './ai';
+import { findClients, systemPrompt, toClientEdit, TOOLS, type AiClient, type AiDoc, type AiResult, type AiService } from './ai';
 import { firebaseApp } from './sync';
 
 const LIVE_MODELS = ['gemini-live-2.5-flash'];
@@ -43,6 +43,10 @@ function toResult(name: string, a: Record<string, unknown>): AiResult | null {
       lines: lignes.map((l) => ({ code: l.code ? String(l.code).toUpperCase() : undefined, description: l.description ? String(l.description) : undefined, quantity: Number(l.quantite) > 0 ? Number(l.quantite) : 1, unitPrice: typeof l.prix_unitaire === 'number' ? l.prix_unitaire : undefined })),
     };
     return { kind: 'doc', text: '', doc };
+  }
+  if (name === 'modifier_client') {
+    const edit = toClientEdit(a);
+    return edit ? { kind: 'client', text: '', edit } : null;
   }
   if (name === 'commander_fournisseur') {
     const arts = Array.isArray(a.articles) ? (a.articles as Record<string, unknown>[]) : [];
