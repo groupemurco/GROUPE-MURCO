@@ -1,4 +1,5 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import {
   browserLocalPersistence,
   browserPopupRedirectResolver,
@@ -281,6 +282,8 @@ async function resolveWorkspace(u: User) {
   setState({ role, memberId, workspace: workspace ?? undefined });
 }
 
+const APP_CHECK_SITE_KEY = '6Lc5vg4uAAAAAJDE0ddPMoxjBnL4wOMyaLqQ3W9_';
+
 export function startSync(): void {
   const cfg = getFirebaseConfig();
   if (!cfg || app) {
@@ -289,6 +292,14 @@ export function startSync(): void {
   }
   try {
     app = initializeApp(cfg, 'murco');
+    if (!cfg.emulator) {
+      try {
+        // App Check (clé publique reCAPTCHA): Firebase exige ce jeton pour l'assistant IA
+        initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(APP_CHECK_SITE_KEY), isTokenAutoRefreshEnabled: true });
+      } catch {
+        /* sans App Check, seul l'assistant IA est refusé */
+      }
+    }
     auth = initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence], popupRedirectResolver: browserPopupRedirectResolver });
     fs = initializeFirestore(app, {
       ignoreUndefinedProperties: true,
