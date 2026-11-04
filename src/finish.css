@@ -211,3 +211,9 @@ input, select, textarea { border-color: var(--field-line); }
 .lea-chips .chip-btn { min-height: 38px; font-weight: 650; }
 p, li, .sub, .agh-sub { text-wrap: pretty; }
 h1, h2, h3 { text-wrap: balance; }
+
+/* Fermer la fenêtre de Léa: bouton rond bien visible */
+.lea-head .icon-btn { width: 40px; height: 40px; min-width: 40px; min-height: 40px; padding: 0; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, 0.2); border: 1.5px solid rgba(255, 255, 255, 0.65); color: #fff; box-shadow: none; background-image: none; }
+.lea-head .icon-btn:hover { background: rgba(255, 255, 255, 0.34); }
+.lea-head .icon-btn svg { width: 20px; height: 20px; stroke-width: 2.8; }
+.lea-teaser-x { width: 26px; height: 26px; display: grid !important; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink) !important; top: 5px !important; right: 6px !important; }
