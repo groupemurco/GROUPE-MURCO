@@ -242,3 +242,12 @@ h1, h2, h3 { text-wrap: balance; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) table.list tr:nth-child(even) td { background: none; } }
 :root[data-theme='dark'] table.list tr:nth-child(even) td { background: none; }
 :root[data-theme='dark'] .card { background-image: linear-gradient(180deg, color-mix(in srgb, var(--trust-1) 7%, transparent), transparent 45%); }
+
+/* Appel vocal avec Léa, dans sa fenêtre */
+.lea-call { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--green) 14%, var(--surface)); border-top: 1px solid color-mix(in srgb, var(--green) 40%, var(--line)); font-weight: 650; font-size: 0.92rem; }
+.lea-call .btn { margin-left: auto; }
+.lea-wave { display: inline-flex; align-items: center; gap: 3px; height: 22px; }
+.lea-wave i { width: 4px; height: 8px; border-radius: 2px; background: var(--green); animation: wave 0.9s ease-in-out infinite; }
+.lea-wave i:nth-child(2) { animation-delay: 0.12s; } .lea-wave i:nth-child(3) { animation-delay: 0.24s; } .lea-wave i:nth-child(4) { animation-delay: 0.36s; }
+@keyframes wave { 50% { height: 20px; } }
+.lea-mic.on { background: var(--red); color: #fff; border-radius: 50%; }
