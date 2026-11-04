@@ -343,8 +343,7 @@ function Shell() {
           <header className="topbar">
             {isRoot ? (
               <>
-                <div className={`tb-title ${full ? 'with-ask' : ''}`}><CompanyMark s={s} /><span>{s.companyName}</span></div>
-                {full && <Link to="/dicter" className="tb-ask" aria-label="Demander à l’assistant"><Mic size={16} /><span>Demande à ton assistant…</span></Link>}
+                <div className="tb-title"><CompanyMark s={s} /><span>{s.companyName}</span></div>
               </>
             ) : (
               <>
