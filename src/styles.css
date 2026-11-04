@@ -1865,11 +1865,27 @@ button.agh-ring:hover .fg { stroke: var(--amber-ink); }
 .sms-pc-how .btn { justify-self: start; }
 @media (max-width: 640px) { .sms-pc { grid-template-columns: 1fr; } }
 
-/* Bulle de chat de la secrétaire IA */
-.ai-bubble { position: fixed; right: 18px; bottom: 18px; z-index: 40; width: 58px; height: 58px; border-radius: 50%; background: var(--amber); color: var(--on-amber); display: grid; place-items: center; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28); text-decoration: none; }
-.ai-bubble img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-.ai-bubble-initial { font-size: 1.5rem; font-weight: 700; }
-.ai-bubble-chat { position: absolute; right: -2px; bottom: -2px; width: 22px; height: 22px; border-radius: 50%; background: var(--green); color: #fff; display: grid; place-items: center; border: 2px solid var(--surface); }
-@media (max-width: 860px) { .ai-bubble { bottom: calc(84px + var(--sab)); right: 14px; width: 52px; height: 52px; } }
-.ai-photo { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
-.ai-photo img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }
+/* Léa: bulle de chat de l'agente administrative */
+.lea-bubble { position: fixed; right: 18px; bottom: 18px; z-index: 40; width: 60px; height: 60px; border-radius: 50%; padding: 0; border: 3px solid var(--surface); background: var(--surface); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3); cursor: pointer; display: grid; place-items: center; }
+.lea-badge { position: absolute; top: -4px; right: -4px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: var(--red); color: #fff; font: 700 0.75rem/22px system-ui, sans-serif; font-style: normal; text-align: center; border: 2px solid var(--surface); }
+.lea-teaser { position: fixed; right: 18px; bottom: 90px; z-index: 40; max-width: 260px; background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 14px 14px 4px 14px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22); padding: 10px 28px 10px 12px; }
+.lea-teaser-txt { all: unset; cursor: pointer; font-size: 0.92rem; line-height: 1.35; }
+.lea-teaser-x { all: unset; cursor: pointer; position: absolute; top: 6px; right: 8px; color: var(--muted); }
+.lea-panel { position: fixed; right: 18px; bottom: 18px; z-index: 45; width: 370px; max-width: calc(100vw - 16px); height: min(580px, calc(100vh - 36px)); display: flex; flex-direction: column; background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); border-radius: 16px; box-shadow: 0 10px 34px rgba(0, 0, 0, 0.35); overflow: hidden; }
+.lea-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--brand); color: var(--brand-ink); }
+.lea-head div { flex: 1; display: grid; line-height: 1.15; }
+.lea-head small { color: var(--brand-muted); }
+.lea-head .icon-btn { color: var(--brand-ink); }
+.lea-body { flex: 1; overflow-y: auto; padding: 12px; display: grid; gap: 8px; align-content: start; background: var(--surface-2); }
+.lea-msg { background: var(--surface); border: 1px solid var(--line); border-radius: 14px 14px 14px 4px; padding: 8px 11px; max-width: 92%; justify-self: start; line-height: 1.4; white-space: pre-wrap; }
+.lea-msg.me { justify-self: end; background: var(--amber-soft); color: var(--amber-ink); border-radius: 14px 14px 4px 14px; }
+.lea-todo { display: grid; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+.lea-card { display: grid; gap: 6px; margin-top: 8px; }
+.lea-card textarea { width: 100%; }
+.lea-input { display: flex; align-items: center; gap: 6px; padding: 8px; border-top: 1px solid var(--line); background: var(--surface); }
+.lea-input input { flex: 1; min-width: 0; }
+@media (max-width: 860px) {
+  .lea-bubble { bottom: calc(84px + var(--sab)); right: 12px; width: 54px; height: 54px; }
+  .lea-teaser { bottom: calc(148px + var(--sab)); right: 12px; }
+  .lea-panel { right: 8px; left: 8px; width: auto; max-width: none; bottom: calc(76px + var(--sab)); height: min(560px, calc(100vh - 170px - var(--sab))); }
+}

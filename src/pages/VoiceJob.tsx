@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { CalendarCheck, CalendarDays, Check, ClipboardList, FileText, MapPin, Mic, RotateCcw, Sparkles, UserPlus } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AddressInput } from '../components/AddressInput';
 import { ClientPicker } from '../components/ClientPicker';
 import { lineFromService, LineItems } from '../components/LineItems';
@@ -124,6 +124,18 @@ export default function VoiceJob() {
   const up = (p: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...p } : d));
 
   useEffect(() => () => rec.current?.stop(), []);
+
+  // Léa (la bulle de chat) envoie ici ce qu'il faut confirmer: facture, soumission, job, commande…
+  const loc = useLocation();
+  const dataReady = useLiveQuery(async () => (await Promise.all([db.clients.count(), db.services.count()]), true), []);
+  const handed = useRef(false);
+  useEffect(() => {
+    const st = loc.state as { leaAsk?: string; leaResult?: AiResult } | null;
+    if (!st?.leaResult || handed.current || !dataReady) return;
+    handed.current = true;
+    window.history.replaceState({}, '');
+    void aiTurn(st.leaAsk ?? '', st.leaResult);
+  });
   const [prop, setProp] = useState<Proposal | null>(null);
   const [relanceDoc, setRelanceDoc] = useState<Proposal['relance'] | null>(null);
   // Message écrit par l'IA pour un client: modifiable avant l'envoi
@@ -220,7 +232,6 @@ export default function VoiceJob() {
           clients: () => clientsRef.current.map((c) => ({ id: c.id, name: c.name, address: c.address, phone: c.phone })),
           today: todayISO(),
           model: s?.aiModel || undefined,
-          assistantName: s?.aiName || undefined,
         });
       }
       const r = preset ?? (await aiRef.current.send(text));
@@ -400,7 +411,6 @@ export default function VoiceJob() {
     try {
       liveRef.current = await startLive({
         company: s?.companyName ?? '',
-        assistantName: s?.aiName || undefined,
         today: todayISO(),
         services: services.map((x) => ({ code: x.code, name: x.name, unit: x.unit, price: x.price })),
         clients: () => clientsRef.current.map((c) => ({ id: c.id, name: c.name, address: c.address, phone: c.phone })),

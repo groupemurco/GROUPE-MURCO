@@ -12,7 +12,6 @@ const INTENTS: Record<string, IntentKind> = { payee: 'payee', relancer: 'relance
 export interface LiveConfig {
   company: string;
   today: string;
-  assistantName?: string;
   services: AiService[];
   clients: () => AiClient[];
   /** Une action à afficher et à confirmer (facture, soumission, job, commande…). */
@@ -93,7 +92,7 @@ export async function startLive(cfg: LiveConfig): Promise<LiveHandle> {
   const app = firebaseApp();
   if (!app) throw new Error('Firebase n’est pas configuré');
   const ai = getAI(app, { backend: new VertexAIBackend('global') });
-  const instruction = systemPrompt(cfg.company, cfg.services, cfg.today, cfg.assistantName) + VOICE_RULES;
+  const instruction = systemPrompt(cfg.company, cfg.services, cfg.today) + VOICE_RULES;
   let last: unknown;
   for (const model of LIVE_MODELS) {
     try {

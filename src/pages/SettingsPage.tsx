@@ -286,16 +286,6 @@ export default function SettingsPage() {
   );
 }
 
-/** Photo recadrée en carré 160 px (petite, pour rester légère dans les réglages synchronisés). */
-async function squarePhoto(file: File): Promise<string> {
-  const bmp = await createImageBitmap(file);
-  const side = Math.min(bmp.width, bmp.height);
-  const c = document.createElement('canvas');
-  c.width = c.height = 160;
-  c.getContext('2d')!.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 160, 160);
-  return c.toDataURL('image/jpeg', 0.85);
-}
-
 function AiSection({ s, up }: { s: Settings; up: (p: Partial<Settings>) => void }) {
   const st = useSyncState();
   const [result, setResult] = useState('');
@@ -330,17 +320,6 @@ function AiSection({ s, up }: { s: Settings; up: (p: Partial<Settings>) => void 
       ) : (
         <>
           <label className="check"><input type="checkbox" checked={on} onChange={(e) => up({ aiAssistant: e.target.checked })} /> Utiliser l’assistant IA (sinon l’assistant de base, sans Internet)</label>
-          <label className="field" style={{ marginTop: 10 }}>Nom de ta secrétaire IA
-            <input value={s.aiName ?? ''} placeholder="Léa" onChange={(e) => up({ aiName: e.target.value })} />
-          </label>
-          <div className="ai-photo">
-            {s.aiPhoto && <img src={s.aiPhoto} alt="" />}
-            <label className="btn small">
-              {s.aiPhoto ? 'Changer la photo' : 'Ajouter une photo'}
-              <input type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void squarePhoto(f).then((aiPhoto) => up({ aiPhoto })); }} />
-            </label>
-            {s.aiPhoto && <button className="btn small" onClick={() => up({ aiPhoto: '' })}>Enlever</button>}
-          </div>
           <div className="row" style={{ marginTop: 10 }}>
             <button className="btn primary" disabled={busy || !on} onClick={test}>Tester</button>
             <span className="small">{result}</span>

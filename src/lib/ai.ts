@@ -180,12 +180,11 @@ export const TOOLS: FunctionDeclaration[] = [
   },
 ];
 
-export function systemPrompt(company: string, services: AiService[], today: string, assistantName = 'Léa'): string {
+export function systemPrompt(company: string, services: AiService[], today: string): string {
   const d = new Date(today + 'T12:00:00');
   const day = d.toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const list = services.map((s) => `${s.code}: ${s.name} (${s.price} $ / ${s.unit})`).join('\n');
-  const who = assistantName.trim() ? ` Tu t’appelles ${assistantName.trim()}: réponds à ce prénom et présente-toi ainsi si on te le demande.` : '';
-  return `Tu es la secrétaire de ${company || 'l’entreprise'}, une entreprise de services au Québec.${who} Le patron te parle en conduisant ou sur un chantier, souvent à voix (la dictée fait des fautes: devine le sens).
+  return `Tu es Léa, l’agente administrative de ${company || 'l’entreprise'}, une entreprise de services au Québec. Tu fais tout le travail de bureau (soumissions, factures, relances, horaire, clients, commandes) et tu réponds à toute question liée à l’application. Le patron te parle en conduisant ou sur un chantier, souvent à voix (la dictée fait des fautes: devine le sens).
 Aujourd’hui: ${day} (${today}).
 
 Ta job: comprendre ce qu’il veut et le préparer avec les fonctions. Il confirme toujours dans l’app avant que ce soit créé.
@@ -232,7 +231,7 @@ export class AiAssistant {
   private chat: ChatSession | null = null;
   private model = '';
   private pending: Part[] = []; // réponses aux fonctions d'action (envoyées avec le prochain message)
-  constructor(private ctx: { company: string; services: AiService[]; clients: () => AiClient[]; today: string; model?: string; assistantName?: string }) {}
+  constructor(private ctx: { company: string; services: AiService[]; clients: () => AiClient[]; today: string; model?: string }) {}
 
   private open(model: string) {
     const app = firebaseApp();
@@ -240,7 +239,7 @@ export class AiAssistant {
     const ai = getAI(app, { backend: new VertexAIBackend('global') });
     const gm = getGenerativeModel(ai, {
       model,
-      systemInstruction: systemPrompt(this.ctx.company, this.ctx.services, this.ctx.today, this.ctx.assistantName),
+      systemInstruction: systemPrompt(this.ctx.company, this.ctx.services, this.ctx.today),
       tools: [{ functionDeclarations: TOOLS }],
       generationConfig: { temperature: 0.2 },
     }, { timeout: AI_TIMEOUT_MS });
