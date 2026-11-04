@@ -1,0 +1,67 @@
+/* ===== Finition 2: typographie distinctive, boutons, badges, onglets, icônes en tuiles ===== */
+:root {
+  --font-display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', 'Archivo Variable', system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', 'Figtree Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --gold-1: #f9c067;
+  --gold-2: #e0901f;
+  --gold-3: #b86f12;
+  --glow: color-mix(in srgb, var(--amber) 55%, transparent);
+}
+::selection { background: color-mix(in srgb, var(--amber) 45%, transparent); }
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+body { font-feature-settings: 'ss01', 'cv11'; letter-spacing: -0.003em; }
+
+/* Titres: caractère, serrés, grands */
+h1, h2, h3, .brand, .agh-title h1, .agh-title h2 { font-family: var(--font-display); font-stretch: 100%; letter-spacing: -0.025em; font-weight: 750; }
+.agh-title h1, .agh-title h2 { font-size: clamp(1.9rem, 3.2vw, 2.7rem); line-height: 1.05; letter-spacing: -0.035em; font-weight: 800; }
+.agh-eyebrow { letter-spacing: 0.14em; font-weight: 700; }
+.card h2, .card-head h2 { font-size: 1.15rem; letter-spacing: -0.02em; }
+.kpi .value, .agh-stats b, .totals .grand, .express-total .amt { font-family: var(--font-display); font-stretch: 100%; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.agh-stats b { font-size: clamp(1.5rem, 2.4vw, 2.1rem); }
+
+/* Cartes: plus rondes, reflet en haut */
+.card { border-radius: 20px; background-image: linear-gradient(180deg, color-mix(in srgb, #fff 5%, transparent), transparent 45%); }
+.card-head { gap: 10px; }
+.card-head > svg:first-child { box-sizing: content-box; width: 20px; height: 20px; padding: 7px; border-radius: 12px; background: color-mix(in srgb, var(--amber) 18%, transparent); color: var(--amber-ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 28%, transparent); }
+
+/* Boutons: pilules en relief, éclat doré */
+.btn, .agh-btn { border-radius: 999px; font-weight: 650; letter-spacing: -0.005em; background-image: linear-gradient(180deg, color-mix(in srgb, #fff 7%, transparent), transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 14%, transparent), 0 2px 6px rgba(0, 0, 0, 0.12); }
+.btn:hover, .agh-btn:hover { border-color: color-mix(in srgb, var(--amber) 55%, var(--line-strong)); }
+.btn.accent, .agh-btn.solid { position: relative; overflow: hidden; color: #1b1405; font-weight: 750; background-image: linear-gradient(160deg, var(--gold-1), var(--gold-2) 60%, var(--gold-3)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -2px 0 rgba(0, 0, 0, 0.14), 0 8px 20px -8px var(--glow); }
+.btn.accent::after, .agh-btn.solid::after { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent); transform: skewX(-20deg); transition: left 0.55s ease; pointer-events: none; }
+.btn.accent:hover::after, .agh-btn.solid:hover::after { left: 130%; }
+.btn.primary { background-image: linear-gradient(180deg, color-mix(in srgb, #fff 12%, transparent), transparent); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 6px 16px -8px rgba(0, 0, 0, 0.5); }
+.btn.danger { border-color: color-mix(in srgb, var(--red) 40%, var(--line-strong)); }
+
+/* Badges: pastille lumineuse avec halo */
+.badge { gap: 6px; font-weight: 700; letter-spacing: 0.01em; box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent); }
+.badge::before { box-shadow: 0 0 7px currentColor; opacity: 1; }
+.badge.green { background: linear-gradient(135deg, color-mix(in srgb, var(--green) 24%, transparent), color-mix(in srgb, var(--green) 10%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 40%, transparent), 0 0 16px -6px var(--green); }
+.badge.red { background: linear-gradient(135deg, color-mix(in srgb, var(--red) 24%, transparent), color-mix(in srgb, var(--red) 10%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 40%, transparent), 0 0 16px -6px var(--red); }
+.badge.amber { background: linear-gradient(135deg, color-mix(in srgb, var(--amber) 28%, transparent), color-mix(in srgb, var(--amber) 10%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent), 0 0 16px -6px var(--amber); }
+.badge.blue { background: linear-gradient(135deg, color-mix(in srgb, var(--blue) 24%, transparent), color-mix(in srgb, var(--blue) 10%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 40%, transparent), 0 0 16px -6px var(--blue); }
+
+/* Onglets et filtres: plateau « iPhone », sélection dorée */
+.tabs { display: inline-flex; flex-wrap: wrap; width: fit-content; max-width: 100%; gap: 2px; padding: 4px; border-radius: 999px; background: var(--seg-track); border: 1px solid var(--line); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.18); }
+.tabs button { background: transparent; border-color: transparent; color: var(--muted); font-weight: 650; transition: color 0.15s, background 0.2s, box-shadow 0.2s, transform 0.12s; }
+.tabs button:hover:not(.on) { color: var(--ink); }
+.tabs button.on, .chip-btn.on { background-image: linear-gradient(160deg, var(--gold-1), var(--gold-2)); background-color: var(--gold-2); color: #1b1405; border-color: transparent; font-weight: 750; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 6px 16px -6px var(--glow); }
+.seg { border-radius: 999px; }
+.seg button { border-radius: 999px; }
+.seg button.on { background-image: linear-gradient(160deg, var(--gold-1), var(--gold-2)); color: #1b1405; box-shadow: 0 6px 14px -6px var(--glow); }
+
+/* Menu: icônes en tuiles qui s'allument */
+.nav a { gap: 12px; }
+.nav a .ico { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 11px; background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05); transition: background 0.2s, box-shadow 0.2s, transform 0.2s; }
+.nav a:hover .ico { background: rgba(255, 255, 255, 0.12); transform: scale(1.06); }
+.nav a.active .ico { background: linear-gradient(145deg, var(--gold-1), var(--gold-3)); color: #1b1405; box-shadow: 0 6px 14px -6px var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.45); }
+.nav a.active { font-weight: 700; }
+.nav-more > summary { padding-left: 16px; }
+
+/* Champs */
+input, select, textarea { border-radius: 14px; }
+table.list tr.click:hover td { background: color-mix(in srgb, var(--amber) 8%, var(--surface-2)); }
+
+/* Léa */
+.lea-head strong { font-family: var(--font-display); font-size: 1.05rem; letter-spacing: -0.02em; }
+.lea-msg.me { background-image: linear-gradient(160deg, var(--gold-1), var(--gold-2)); color: #1b1405; }
