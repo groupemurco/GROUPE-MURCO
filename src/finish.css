@@ -217,3 +217,12 @@ h1, h2, h3 { text-wrap: balance; }
 .lea-head .icon-btn:hover { background: rgba(255, 255, 255, 0.34); }
 .lea-head .icon-btn svg { width: 20px; height: 20px; stroke-width: 2.8; }
 .lea-teaser-x { width: 26px; height: 26px; display: grid !important; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--ink) 12%, transparent); color: var(--ink) !important; top: 5px !important; right: 6px !important; }
+
+/* Boutons et onglets du haut bien visibles (surtout en mode clair): bord à 3:1 et icône nette */
+.btn:not(.accent):not(.primary):not(.ghost), .agh-btn:not(.solid), .tb-btn { border-color: var(--field-line); }
+.agh-btn:not(.solid) { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), inset 0 1px 0 color-mix(in srgb, #fff 40%, transparent); }
+.agh-btn svg { color: var(--ink); }
+.agh-btn.icon.corner { border-width: 1.5px; }
+.tabs button { color: var(--ink); opacity: 0.8; }
+.tabs button.on { opacity: 1; }
+.tabs { border-color: var(--field-line); }
