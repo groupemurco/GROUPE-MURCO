@@ -90,6 +90,7 @@ export interface Settings extends Synced {
   aiAssistant?: boolean; // assistant IA (Gemini via Firebase AI Logic); par défaut: actif si Firebase est configuré
   aiModel?: string; // modèle Gemini (vide = le défaut)
   aiName?: string; // prénom de la secrétaire IA (ex.: Léa)
+  aiPhoto?: string; // photo de la secrétaire IA (petite image en data URL)
   canadaPostKey?: string; // Postes Canada AddressComplete (adresses officielles pendant la saisie)
   tagline?: string; // sous la signature des devis (ex.: « Calfeutrage • Aluminium »)
   quoteFormat?: 'lignes' | 'devis'; // format des nouvelles soumissions (le dernier utilisé)

@@ -180,7 +180,7 @@ export const TOOLS: FunctionDeclaration[] = [
   },
 ];
 
-export function systemPrompt(company: string, services: AiService[], today: string, assistantName = ''): string {
+export function systemPrompt(company: string, services: AiService[], today: string, assistantName = 'Léa'): string {
   const d = new Date(today + 'T12:00:00');
   const day = d.toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const list = services.map((s) => `${s.code}: ${s.name} (${s.price} $ / ${s.unit})`).join('\n');

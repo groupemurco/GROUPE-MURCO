@@ -4,6 +4,7 @@ import { Mic,
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { AssistantBubble } from './components/AssistantBubble';
 import { CommandPalette } from './components/CommandPalette';
 import { SyncBadge } from './components/SyncBadge';
 import { ToastProvider } from './components/Toast';
@@ -387,6 +388,8 @@ function Shell() {
           )}
           </div>
         </main>
+
+        {full && !editor && <AssistantBubble s={s} />}
 
         {update.available && (
           <div className="update-bar">
