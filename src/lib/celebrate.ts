@@ -3,8 +3,17 @@ let last = 0;
 
 const COLORS = ['#5b9bff', '#ffad33', '#3fd3a0', '#ffffff', '#ff7a90'];
 
+export function tap(ms = 8): void {
+  try {
+    navigator.vibrate?.(ms);
+  } catch {
+    /* pas de vibreur */
+  }
+}
+
 export function celebrate(): void {
   try {
+    tap(24);
     if (typeof document === 'undefined' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const now = Date.now();
     if (now - last < 8000) return;

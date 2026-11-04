@@ -7,6 +7,7 @@ import '@fontsource-variable/figtree';
 import './styles.css';
 import './polish.css';
 import './finish.css';
+import { tap } from './lib/celebrate';
 import { applyStoredAccent } from './lib/accent';
 import { applyTheme } from './lib/theme';
 import { isNative } from './lib/native';
@@ -44,3 +45,8 @@ if ('serviceWorker' in navigator && import.meta.env.PROD && !isNative()) {
     navigator.serviceWorker.register('./sw.js').catch(() => undefined);
   });
 }
+
+// Retour tactile léger sur les actions principales
+document.addEventListener('pointerdown', (e) => {
+  if ((e.target as HTMLElement | null)?.closest('.btn.accent, .home-actions button, .tab-create, .lea-bubble')) tap();
+}, { passive: true });

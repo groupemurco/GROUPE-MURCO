@@ -20,6 +20,12 @@ export function LeaAvatar({ size = 48 }: { size?: number }) {
 
 type Msg = { me?: boolean; text: string; message?: AiMessage & { name: string; phone: string; email: string; subject: string }; edit?: { client: Client; edit: AiClientEdit; done?: boolean }; handoff?: { ask: string; result: AiResult }; prop?: Proposal };
 
+const QUICK = [
+  { label: 'Relancer les impayés', ask: 'Relance mes factures en retard' },
+  { label: 'Planifier une job', ask: 'Je veux planifier une job' },
+  { label: 'Faire une soumission', ask: 'Je veux faire une soumission' },
+  { label: 'Ma journée', ask: 'Quel est mon horaire aujourd’hui?' },
+];
 const KINDS = ['retard', 'soumission', 'facturer'];
 const ACTION: Record<string, string> = { retard: 'Relancer', soumission: 'Relancer', facturer: 'Facturer' };
 const LABELS: Record<string, string> = { name: 'Nom', contact: 'Contact', phone: 'Téléphone', email: 'Courriel', address: 'Adresse', notes: 'Notes' };
@@ -68,8 +74,8 @@ export function LeaChat() {
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [msgs, open, busy]);
   useEffect(() => { setOpen(false); }, [loc.pathname]);
 
-  const send = async () => {
-    const text = input.trim() || (photo ? 'Voici une photo. Qu’est-ce que je dois en faire?' : '');
+  const send = async (override?: string) => {
+    const text = (override ?? input).trim() || (photo ? 'Voici une photo. Qu’est-ce que je dois en faire?' : '');
     if (!text || busy) return;
     const img = photo;
     setInput('');
@@ -238,6 +244,11 @@ export function LeaChat() {
           {on ? (
             <>
             {photo && <div className="lea-photo"><img src={photo.url} alt="" /><button className="icon-btn" aria-label="Retirer la photo" onClick={() => setPhoto(null)}><X size={14} /></button></div>}
+            {!msgs.length && !busy && (
+              <div className="lea-chips">
+                {QUICK.map((q) => <button key={q.label} type="button" className="chip-btn" onClick={() => void send(q.ask)}>{q.label}</button>)}
+              </div>
+            )}
             <form className="lea-input" onSubmit={(e) => { e.preventDefault(); void send(); }}>
               <label className="icon-btn" aria-label="Joindre une photo" title="Photo (reçu, demande…)"><Camera size={18} /><input type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void pickPhoto(f); }} /></label>
               <input value={input} placeholder="Demande-moi n’importe quoi…" onChange={(e) => setInput(e.target.value)} aria-label="Message pour Léa" />

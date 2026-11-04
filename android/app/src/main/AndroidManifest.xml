@@ -39,6 +39,7 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Photos des reçus et des jobs -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Km depuis la maison (« Je suis sur place ») -->

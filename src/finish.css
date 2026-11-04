@@ -201,3 +201,13 @@ table.list tr.click:hover td { background: color-mix(in srgb, var(--trust-2) 10%
 .ok-check { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: color-mix(in srgb, var(--green) 22%, transparent); color: var(--green); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 45%, transparent); animation: pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
 @keyframes pop { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 p, .small, .sub { max-width: 68ch; }
+
+/* ===== Finition 6: contraste mesuré (WCAG), suggestions de Léa, détails de lecture ===== */
+:root { --field-line: #7185ad; --green: #0b6b4a; --red: #b02a24; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --field-line: #6479a6; --green: #3fd3a0; --red: #ff7a70; } }
+:root[data-theme='dark'] { --field-line: #6479a6; --green: #3fd3a0; --red: #ff7a70; }
+input, select, textarea { border-color: var(--field-line); }
+.lea-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 0; background: var(--surface); }
+.lea-chips .chip-btn { min-height: 38px; font-weight: 650; }
+p, li, .sub, .agh-sub { text-wrap: pretty; }
+h1, h2, h3 { text-wrap: balance; }
