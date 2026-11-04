@@ -251,7 +251,7 @@ export function LeaChat() {
                 )}
               </div>
             ))}
-            {busy && <div className="lea-msg">…</div>}
+            {busy && <div className="lea-msg lea-typing" aria-label="Léa écrit"><i /><i /><i /></div>}
             <div ref={endRef} />
           </div>
           {on ? (
