@@ -1,12 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ConfirmList } from '../components/ConfirmList';
+import { Ico } from '../components/Icons';
 import { SnowAlert } from '../components/SnowAlert';
 import { CountUp } from '../components/CountUp';
 import { Modal } from '../components/Modal';
 import { PageHero, Ring } from '../components/PageHero';
 import { RelanceModal } from '../components/RelanceModal';
 import {
-  AlertTriangle, Bell, CalendarDays, CalendarPlus, Camera, Car, CircleCheck, ClipboardList, Clock, Eye, FileText, Inbox, LayoutGrid, MapPin, Phone, Plus, Star, Target, TrendingDown, TrendingUp, Zap } from 'lucide-react';
+  Bell, Camera, Car, CircleCheck, ClipboardList, Clock, Eye, Inbox, LayoutGrid, MapPin, Phone, Plus, Star, Target, TrendingDown, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { db, saveSettings, type Client, type Doc } from '../lib/db';
@@ -147,9 +148,9 @@ export default function Dashboard(_props: { onSearch?: () => void }) {
       </PageHero>
 
       <div className="home-actions three">
-        <button className="ha-main" onClick={() => nav('/express')}><Zap size={28} /> Nouvelle facture</button>
-        <button onClick={() => nav('/doc/new?type=quote&format=lignes')}><ClipboardList size={28} /> Nouvelle soumission</button>
-        <button onClick={() => nav('/job/new')}><CalendarPlus size={28} /> Planifier une job</button>
+        <button className="ha-main" onClick={() => nav('/express')}><Ico n="bolt" size={28} /> Nouvelle facture</button>
+        <button onClick={() => nav('/doc/new?type=quote&format=lignes')}><Ico n="quote" size={28} /> Nouvelle soumission</button>
+        <button onClick={() => nav('/job/new')}><Ico n="jobplus" size={28} /> Planifier une job</button>
       </div>
 
       <SnowAlert s={s} />
@@ -157,7 +158,7 @@ export default function Dashboard(_props: { onSearch?: () => void }) {
       {s.setupHidden && missing.length > 0 && <div className="notice">À compléter: <strong>{missing.join(', ')}</strong>. <Link to="/parametres">Paramètres →</Link></div>}
       {show('today') && <div className="grid auto">
         <div className="card">
-          <div className="card-head"><CalendarDays size={18} /><h2>Aujourd’hui</h2><span className="spacer" /><Link className="btn small" to="/agenda">Agenda</Link></div>
+          <div className="card-head"><Ico n="sun" size={20} /><h2>Aujourd’hui</h2><span className="spacer" /><Link className="btn small" to="/agenda">Agenda</Link></div>
           {jobsToday.length === 0 ? (
             <div className="empty" style={{ padding: 18 }}>
               <div>Aucun job planifié aujourd’hui.</div>
@@ -197,7 +198,7 @@ export default function Dashboard(_props: { onSearch?: () => void }) {
 
       {show('followups') && followups.length > 0 && (
         <div className="card followups">
-          <div className="card-head"><Bell size={18} /><h2>À relancer</h2></div>
+          <div className="card-head"><Ico n="bell" size={20} /><h2>À relancer</h2></div>
           {followups.map(({ doc: d, why }) => {
             const c = data.clients.get(d.clientId);
             return (
@@ -215,7 +216,7 @@ export default function Dashboard(_props: { onSearch?: () => void }) {
 
       <div className="grid two auto">
         {show('unpaid') && <div className="card">
-          <div className="card-head">{overdue.length ? <AlertTriangle size={18} color="var(--red)" /> : <FileText size={18} />}<h2>À encaisser</h2></div>
+          <div className="card-head"><Ico n="collect" size={20} /><h2>À encaisser</h2></div>
           {unpaid.length === 0 ? (
             <div className="empty" style={{ padding: 18 }}><CircleCheck size={30} /> Tout est payé.</div>
           ) : (

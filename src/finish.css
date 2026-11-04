@@ -65,3 +65,57 @@ table.list tr.click:hover td { background: color-mix(in srgb, var(--amber) 8%, v
 /* Léa */
 .lea-head strong { font-family: var(--font-display); font-size: 1.05rem; letter-spacing: -0.02em; }
 .lea-msg.me { background-image: linear-gradient(160deg, var(--gold-1), var(--gold-2)); color: #1b1405; }
+
+/* ===== Finition 3: palette chaleureuse (60-30-10), espacement en suite de Fibonacci, aurore, icônes duotone ===== */
+:root {
+  --s1: 8px; --s2: 13px; --s3: 21px; --s4: 34px; --s5: 55px;
+  --bg: #f8f4ec; --surface: #fffdf9; --surface-2: #f3eee4;
+  --ink: #1c1a17; --muted: #5a554c;
+  --line: #e6dfd1; --line-strong: #cfc6b3;
+  --brand: #1b2233; --brand-2: #252e45;
+  --amber: #e8962a; --amber-ink: #8a4f00; --amber-soft: #fdeed2;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #12100e; --surface: #1c1916; --surface-2: #26221d;
+    --ink: #fbf8f2; --muted: #c4beb2;
+    --line: #36312a; --line-strong: #51493e;
+    --brand: #0f1422; --brand-2: #1a2236;
+    --amber: #f4ac43; --amber-ink: #f7bd62; --amber-soft: #3b2a10;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #12100e; --surface: #1c1916; --surface-2: #26221d;
+  --ink: #fbf8f2; --muted: #c4beb2;
+  --line: #36312a; --line-strong: #51493e;
+  --brand: #0f1422; --brand-2: #1a2236;
+  --amber: #f4ac43; --amber-ink: #f7bd62; --amber-soft: #3b2a10;
+}
+
+/* Aurore: de la lumière chaude qui respire derrière tout */
+body::before { content: ''; position: fixed; inset: -25%; z-index: -1; pointer-events: none; filter: blur(48px); animation: aurora 22s ease-in-out infinite alternate;
+  background: radial-gradient(38% 32% at 18% 18%, color-mix(in srgb, var(--amber) 26%, transparent), transparent 70%), radial-gradient(34% 38% at 86% 12%, rgba(110, 120, 255, 0.16), transparent 70%), radial-gradient(42% 36% at 72% 92%, rgba(255, 120, 150, 0.12), transparent 70%); }
+@keyframes aurora { to { transform: translate3d(3%, 4%, 0) scale(1.08) rotate(4deg); } }
+
+/* Respiration: espaces de la suite 8 · 13 · 21 · 34 */
+.card { padding: var(--s3); margin-bottom: var(--s3); border-radius: var(--s3); }
+.ag-hero { padding: var(--s4); border-radius: 26px; margin-bottom: var(--s3); position: relative; }
+.home-actions { gap: var(--s2); margin-bottom: var(--s3); }
+@media (min-width: 861px) { .home-actions.three button { aspect-ratio: 1.618 / 1; min-height: 0; } }
+
+/* Bordure vivante autour du bandeau: un éclat doré qui tourne */
+@property --a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.ag-hero::after { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none;
+  background: conic-gradient(from var(--a), transparent 0 62%, color-mix(in srgb, var(--amber) 90%, #fff) 82%, transparent 96%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); animation: spin-a 7s linear infinite; }
+@keyframes spin-a { to { --a: 360deg; } }
+
+/* Icônes duotone: la forme pleine reste douce, le trait est net */
+.ico-duo .d { fill: currentColor; fill-opacity: 0.24; stroke: none; }
+.home-actions button svg.ico-duo { stroke-width: 1.8; }
+.nav a .ico svg.ico-duo { filter: drop-shadow(0 0 6px color-mix(in srgb, currentColor 30%, transparent)); }
+
+/* Léa en photo */
+.lea-av { display: block; border-radius: 50%; object-fit: cover; object-position: 50% 22%; box-shadow: 0 0 0 2px var(--amber), 0 4px 14px rgba(0, 0, 0, 0.3); flex: none; background: var(--surface-2); }
+.lea-bubble { border: 0; background: transparent; }
+.lea-bubble .lea-av { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--amber), 0 10px 24px rgba(0, 0, 0, 0.4); }

@@ -9,32 +9,13 @@ import { db, type Client, type Doc } from '../lib/db';
 import { useSettings } from '../lib/hooks';
 import { buildTodos, snoozeTodo, type Todo } from '../lib/todo';
 import { todayISO } from '../lib/utils';
+import leaPhoto from '../assets/lea.png';
 import { RelanceModal } from './RelanceModal';
 import { errMsg, useToast } from './Toast';
 
-/** Léa, l'agente administrative: son visage ne change pas. */
+/** Léa, l'agente administrative: sa photo ne change pas. */
 export function LeaAvatar({ size = 48 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 64 64" width={size} height={size} role="img" aria-label="Léa" style={{ borderRadius: '50%', flex: 'none' }}>
-      <defs><clipPath id="lea-clip"><circle cx="32" cy="32" r="32" /></clipPath></defs>
-      <g clipPath="url(#lea-clip)">
-        <rect width="64" height="64" fill="#f2c27a" />
-        <path d="M6 64c2-14 12-20 26-20s24 6 26 20z" fill="#2f3a4f" />
-        <path d="M25 44l7 11 7-11z" fill="#fff" />
-        <rect x="28" y="36" width="8" height="10" rx="3" fill="#e8b48f" />
-        <path d="M14 36c-2-17 8-26 18-26s20 9 18 26c-1 8-4 12-6 14H20c-2-2-5-6-6-14z" fill="#5a3a26" />
-        <ellipse cx="32" cy="30" rx="11" ry="13" fill="#f3c9a5" />
-        <path d="M20 28c2-9 8-12 13-12 6 0 10 5 11 12-4-4-9-6-14-6s-8 2-10 6z" fill="#5a3a26" />
-        <circle cx="27.5" cy="31" r="1.3" fill="#2b2b2b" />
-        <circle cx="36.5" cy="31" r="1.3" fill="#2b2b2b" />
-        <path d="M28 37c2.5 2.5 5.5 2.5 8 0" stroke="#b5524a" strokeWidth="1.6" fill="none" strokeLinecap="round" />
-        <path d="M18 30c0-9 6-15 14-15s14 6 14 15" stroke="#222" strokeWidth="1.6" fill="none" />
-        <rect x="16" y="29" width="4" height="8" rx="2" fill="#222" />
-        <path d="M19 36c0 5 4 7 9 7" stroke="#222" strokeWidth="1.4" fill="none" />
-        <circle cx="29" cy="43" r="1.6" fill="#222" />
-      </g>
-    </svg>
-  );
+  return <img className="lea-av" src={leaPhoto} width={size} height={size} alt="Léa" />;
 }
 
 type Msg = { me?: boolean; text: string; message?: AiMessage & { name: string; phone: string; email: string; subject: string }; edit?: { client: Client; edit: AiClientEdit; done?: boolean }; handoff?: { ask: string; result: AiResult }; prop?: Proposal };

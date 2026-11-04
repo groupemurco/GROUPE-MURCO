@@ -1,11 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { AlertTriangle, Bell, ClipboardList, Clock, FileText, Inbox, ListChecks, Phone } from 'lucide-react';
+import { AlertTriangle, Bell, ClipboardList, Clock, FileText, Inbox, Phone } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jobToInvoice } from '../lib/agenda';
 import { setStage } from '../lib/crm';
 import { db } from '../lib/db';
 import { buildTodos, snoozeTodo, type Todo, type TodoKind } from '../lib/todo';
+import { Ico } from './Icons';
 import { RelanceModal } from './RelanceModal';
 import { ReminderModal } from './ReminderModal';
 import { errMsg, useToast } from './Toast';
@@ -51,7 +52,7 @@ export function ConfirmList({ limit = 5, title = 'À confirmer' }: { limit?: num
   return (
     <div className="card todo">
       <div className="card-head">
-        <ListChecks size={18} /><h2>{title}</h2>
+        <Ico n="checklist" size={20} /><h2>{title}</h2>
         {todos.length > 0 && <span className="todo-count">{todos.length}</span>}
       </div>
       {todos.length === 0 ? (

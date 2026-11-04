@@ -1,10 +1,11 @@
 import { Mic,
-  CalendarDays, Camera, ChevronLeft, Crown, Download, Lock, FolderOpen, TrendingUp, Inbox, Clock, Briefcase, UsersRound, Car, ClipboardList, FileText, Home, LayoutGrid, Mail, Moon, Package, Plus, Search, Settings, Sparkles, Sun, SunMoon, Tag, Timer, Users, X, Zap, ImagePlus, Truck, Wrench, type LucideIcon,
+  CalendarDays, Camera, ChevronLeft, Crown, Download, Lock, Inbox, Clock, ClipboardList, FileText, LayoutGrid, Moon, Plus, Search, Sparkles, Sun, SunMoon, Timer, X, Zap, ImagePlus, type LucideIcon,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { LeaChat } from './components/LeaChat';
+import { duo } from './components/Icons';
 import { CommandPalette } from './components/CommandPalette';
 import { SyncBadge } from './components/SyncBadge';
 import { ToastProvider } from './components/Toast';
@@ -61,34 +62,34 @@ interface NavItem {
   to: string;
   label: string;
   short: string;
-  icon: LucideIcon;
+  icon: ComponentType<{ size?: number }>;
   end?: boolean;
   sep?: boolean;
   roles?: Role[]; // rôles qui voient l'élément (tous si absent → propriétaire/admin seulement)
 }
 
 const NAV: NavItem[] = [
-  { to: '/', label: 'Accueil', short: 'Accueil', icon: Home, end: true },
-  { to: '/demandes', label: 'Demandes', short: 'Demandes', icon: Inbox, roles: ['vendeur'] },
-  { to: '/agenda', label: 'Agenda', short: 'Agenda', icon: CalendarDays, roles: ['employe', 'vendeur'] },
-  { to: '/pointage', label: 'Heures (pointage)', short: 'Pointage', icon: Clock, roles: ['employe', 'vendeur'] },
-  { to: '/factures', label: 'Factures', short: 'Factures', icon: FileText },
-  { to: '/soumissions', label: 'Soumissions', short: 'Soumissions', icon: ClipboardList, roles: ['vendeur'] },
-  { to: '/clients', label: 'Clients', short: 'Clients', icon: Users, roles: ['vendeur'] },
-  { to: '/projets', label: 'Projets', short: 'Projets', icon: Briefcase },
-  { to: '/equipe', label: 'Équipe', short: 'Équipe', icon: UsersRound },
-  { to: '/rapports', label: 'Chiffres et taxes', short: 'Chiffres', icon: TrendingUp },
-  { to: '/estimateur', label: 'Estimateur de projet', short: 'Estimer', icon: Sparkles },
-  { to: '/metier', label: 'Calculs et matériaux', short: 'Calculs', icon: Wrench },
-  { to: '/achats', label: 'Achats de matériaux', short: 'Achats', icon: Truck },
-  { to: '/codes', label: 'Mes prix et services', short: 'Prix', icon: Tag, sep: true },
-  { to: '/km', label: 'Kilométrage', short: 'Km', icon: Car },
-  { to: '/depenses', label: 'Dépenses et reçus', short: 'Reçus', icon: Camera },
-  { to: '/classeur', label: 'Mes documents', short: 'Documents', icon: FolderOpen },
-  { to: '/gmail', label: 'Gmail', short: 'Gmail', icon: Mail },
-  { to: '/comptable', label: 'Pour le comptable', short: 'Comptable', icon: Package },
-  { to: '/abonnement', label: 'Abonnement', short: 'Abonnement', icon: Crown },
-  { to: '/parametres', label: 'Paramètres', short: 'Paramètres', icon: Settings, roles: ['employe', 'vendeur'] },
+  { to: '/', label: 'Accueil', short: 'Accueil', icon: duo('home'), end: true },
+  { to: '/demandes', label: 'Demandes', short: 'Demandes', icon: duo('inbox'), roles: ['vendeur'] },
+  { to: '/agenda', label: 'Agenda', short: 'Agenda', icon: duo('calendar'), roles: ['employe', 'vendeur'] },
+  { to: '/pointage', label: 'Heures (pointage)', short: 'Pointage', icon: duo('clock'), roles: ['employe', 'vendeur'] },
+  { to: '/factures', label: 'Factures', short: 'Factures', icon: duo('invoice') },
+  { to: '/soumissions', label: 'Soumissions', short: 'Soumissions', icon: duo('quote'), roles: ['vendeur'] },
+  { to: '/clients', label: 'Clients', short: 'Clients', icon: duo('clients'), roles: ['vendeur'] },
+  { to: '/projets', label: 'Projets', short: 'Projets', icon: duo('briefcase') },
+  { to: '/equipe', label: 'Équipe', short: 'Équipe', icon: duo('clients') },
+  { to: '/rapports', label: 'Chiffres et taxes', short: 'Chiffres', icon: duo('chart') },
+  { to: '/estimateur', label: 'Estimateur de projet', short: 'Estimer', icon: duo('spark') },
+  { to: '/metier', label: 'Calculs et matériaux', short: 'Calculs', icon: duo('calc') },
+  { to: '/achats', label: 'Achats de matériaux', short: 'Achats', icon: duo('cart') },
+  { to: '/codes', label: 'Mes prix et services', short: 'Prix', icon: duo('tag'), sep: true },
+  { to: '/km', label: 'Kilométrage', short: 'Km', icon: duo('car') },
+  { to: '/depenses', label: 'Dépenses et reçus', short: 'Reçus', icon: duo('wallet') },
+  { to: '/classeur', label: 'Mes documents', short: 'Documents', icon: duo('folder') },
+  { to: '/gmail', label: 'Gmail', short: 'Gmail', icon: duo('mail') },
+  { to: '/comptable', label: 'Pour le comptable', short: 'Comptable', icon: duo('book') },
+  { to: '/abonnement', label: 'Abonnement', short: 'Abonnement', icon: duo('crown') },
+  { to: '/parametres', label: 'Paramètres', short: 'Paramètres', icon: duo('settings'), roles: ['employe', 'vendeur'] },
 ];
 
 const canSee = (n: { roles?: Role[] }, role: Role) => role === 'owner' || role === 'admin' || !!n.roles?.includes(role);
