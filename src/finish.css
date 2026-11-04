@@ -181,3 +181,4 @@ table.list tr.click:hover td { background: color-mix(in srgb, var(--trust-2) 10%
 
 /* Vert = réussite et argent encaissé */
 .badge.green { color: var(--green); }
+.home-actions button:not(.ha-main) { color: var(--ink); }
