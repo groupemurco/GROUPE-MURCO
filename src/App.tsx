@@ -110,13 +110,13 @@ const MENU_GROUPS: { title: string; items: string[] }[] = [
   { title: 'Outils', items: ['/', '/codes', '/gmail', '/abonnement', '/parametres'] },
 ];
 
-// Menu de gauche (ordi): les sections, dans l'ordre où on s'en sert
-const SIDE_GROUPS: { title: string; items: string[] }[] = [
-  { title: '', items: ['/'] },
-  { title: 'Mes ventes', items: ['/demandes', '/soumissions', '/factures', '/clients', '/projets'] },
-  { title: 'Mon travail', items: ['/agenda', '/pointage', '/equipe', '/estimateur', '/metier', '/achats'] },
-  { title: 'Mon argent', items: ['/depenses', '/km', '/classeur', '/rapports', '/comptable'] },
-  { title: 'Réglages', items: ['/codes', '/gmail', '/abonnement', '/parametres'] },
+// Menu de gauche (ordi): l'essentiel; le reste est replié dans « Plus »
+const SIDE_MAIN = ['/', '/clients', '/soumissions', '/factures', '/agenda', '/depenses', '/parametres'];
+const SIDE_MORE: { title: string; items: string[] }[] = [
+  { title: 'Ventes', items: ['/demandes', '/projets'] },
+  { title: 'Travail', items: ['/pointage', '/equipe', '/estimateur', '/metier', '/achats'] },
+  { title: 'Argent', items: ['/km', '/classeur', '/rapports', '/comptable'] },
+  { title: 'Réglages', items: ['/codes', '/gmail', '/abonnement'] },
 ];
 
 const PAGE_TITLE: [RegExp, string][] = [
@@ -298,21 +298,35 @@ function Shell() {
             </button>
           )}
           <nav className="nav">
-            {SIDE_GROUPS.map((g) => {
-              const items = g.items.map((to) => NAV.find((n) => n.to === to)).filter((n): n is NavItem => !!n && canSee(n, role));
-              if (!items.length) return null;
-              return (
-                <div key={g.title || 'accueil'} className="nav-group-box">
-                  {g.title && <div className="nav-group">{g.title}</div>}
-                  {items.map((n) => (
-                    <NavLink key={n.to} to={n.to} end={n.end}>
-                      <span className="ico"><n.icon size={18} /></span>
-                      {n.label}
-                    </NavLink>
-                  ))}
-                </div>
+            {(() => {
+              const staff = role === 'employe' || role === 'vendeur';
+              const mainPaths = staff ? [...SIDE_MAIN.slice(0, -1), '/demandes', '/pointage', '/parametres'] : SIDE_MAIN;
+              const pick = (paths: string[]) => paths.map((to) => NAV.find((n) => n.to === to)).filter((n): n is NavItem => !!n && canSee(n, role));
+              const link = (n: NavItem) => (
+                <NavLink key={n.to} to={n.to} end={n.end}>
+                  <span className="ico"><n.icon size={18} /></span>
+                  {n.label}
+                </NavLink>
               );
-            })}
+              const more = SIDE_MORE.map((g) => ({ title: g.title, items: pick(g.items.filter((to) => !mainPaths.includes(to))) })).filter((g) => g.items.length);
+              const inMore = more.some((g) => g.items.some((n) => (n.end ? loc.pathname === n.to : loc.pathname.startsWith(n.to))));
+              return (
+                <>
+                  <div className="nav-group-box">{pick(mainPaths).map(link)}</div>
+                  {more.length > 0 && (
+                    <details className="nav-more" open={inMore || undefined}>
+                      <summary>Plus</summary>
+                      {more.map((g) => (
+                        <div key={g.title} className="nav-group-box">
+                          <div className="nav-group">{g.title}</div>
+                          {g.items.map(link)}
+                        </div>
+                      ))}
+                    </details>
+                  )}
+                </>
+              );
+            })()}
           </nav>
           <div className="side-foot">
             <button className="side-btn" onClick={() => setCmd(true)}>

@@ -4,10 +4,9 @@ import { SnowAlert } from '../components/SnowAlert';
 import { CountUp } from '../components/CountUp';
 import { Modal } from '../components/Modal';
 import { PageHero, Ring } from '../components/PageHero';
-import { Onboarding } from '../components/Onboarding';
 import { RelanceModal } from '../components/RelanceModal';
 import {
-  AlertTriangle, Bell, Mic, CalendarDays, CalendarPlus, Camera, Car, CircleCheck, ClipboardList, Clock, Eye, FileText, Inbox, LayoutGrid, MapPin, Phone, Plus, Search, Star, Target, TrendingDown, TrendingUp, Zap, Sparkles } from 'lucide-react';
+  AlertTriangle, Bell, CalendarDays, CalendarPlus, Camera, Car, CircleCheck, ClipboardList, Clock, Eye, FileText, Inbox, LayoutGrid, MapPin, Phone, Plus, Star, Target, TrendingDown, TrendingUp, Zap } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { db, saveSettings, type Client, type Doc } from '../lib/db';
@@ -31,7 +30,7 @@ export const DASH_TILES: { key: string; label: string }[] = [
 
 const MONTHS = ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
 
-export default function Dashboard({ onSearch }: { onSearch?: () => void }) {
+export default function Dashboard(_props: { onSearch?: () => void }) {
   const s = useSettings();
   const nav = useNavigate();
   const today = todayISO();
@@ -125,13 +124,7 @@ export default function Dashboard({ onSearch }: { onSearch?: () => void }) {
         sub={plannedToday ? `${plannedToday} job${plannedToday > 1 ? 's' : ''} au programme aujourd’hui${overdue.length ? ` · ${overdue.length} facture${overdue.length > 1 ? 's' : ''} en retard` : ''}` : overdue.length ? `${overdue.length} facture${overdue.length > 1 ? 's' : ''} en retard à relancer` : 'Journée libre — bon moment pour relancer tes soumissions.'}
         actions={
           <>
-            <button className="agh-btn hide-mobile" onClick={onSearch}><Search size={16} /> Rechercher</button>
-            <button className="agh-btn hide-mobile" onClick={() => nav('/dicter')}><Mic size={16} /> Assistant</button>
-            <button className="agh-btn hide-mobile" onClick={() => nav('/doc/new?type=quote&format=lignes')}><ClipboardList size={16} /> Soumission</button>
-            <button className="agh-btn hide-mobile" onClick={() => nav('/soumission-ia')}><Sparkles size={16} /> Soumission IA</button>
-            <button className="agh-btn hide-mobile" onClick={() => nav('/depenses/new')}><Camera size={16} /> Reçu</button>
             <button className="agh-btn icon corner" onClick={() => setTilesOpen(true)} aria-label="Choisir les tuiles" title="Choisir ce qui s’affiche"><LayoutGrid size={17} /></button>
-            <button className="agh-btn solid hide-mobile" onClick={() => nav('/express')}><Zap size={16} /> Facture express</button>
           </>
         }
       >
@@ -140,9 +133,7 @@ export default function Dashboard({ onSearch }: { onSearch?: () => void }) {
             <Ring big value={monthNow / goal} onClick={() => setGoalOpen(true)} label={`Objectif du mois: ${Math.round((monthNow / goal) * 100)} %`}>
               <b>{Math.round((monthNow / goal) * 100)} %</b>objectif
             </Ring>
-          ) : (
-            <button className="agh-btn" onClick={() => setGoalOpen(true)}><Target size={16} /> Fixer un objectif du mois</button>
-          )}
+          ) : null}
           <div className="agh-stats">
             <div>
               <b><CountUp value={monthNow} format={money} /></b>
@@ -155,51 +146,17 @@ export default function Dashboard({ onSearch }: { onSearch?: () => void }) {
         </div>
       </PageHero>
 
-      <div className="home-actions">
+      <div className="home-actions three">
         <button className="ha-main" onClick={() => nav('/express')}><Zap size={28} /> Nouvelle facture</button>
         <button onClick={() => nav('/doc/new?type=quote&format=lignes')}><ClipboardList size={28} /> Nouvelle soumission</button>
-        <button onClick={() => nav('/soumission-ia')}><Sparkles size={28} /> Soumission IA</button>
         <button onClick={() => nav('/job/new')}><CalendarPlus size={28} /> Planifier une job</button>
-        <button onClick={() => nav('/dicter')}><Mic size={28} /> Parler à l’assistant</button>
       </div>
 
       <SnowAlert s={s} />
-      <div className="dash-masonry">
-      {show('kpi') && <div className="grid kpi">
-        <div className="card hot"><div className="label">Ventes {year}</div><div className="value"><CountUp value={sum(yInv, 'subtotal')} format={money} /></div><div className="sub">ce mois-ci: {money(sum(mInv, 'subtotal'))}</div></div>
-        <div className="card"><div className="label">À recevoir</div><div className="value"><CountUp value={sum(unpaid, 'balance')} format={money} /></div><div className="sub">{unpaid.length} facture(s){overdue.length ? ` · ${overdue.length} en retard` : ''}</div></div>
-        <div className="card"><div className="label">Km {year}</div><div className="value"><CountUp value={yKm} format={(n) => km(Math.round(n))} /></div><div className="sub">≈ {money(kmAllowance(yKm, s))} déductibles</div></div>
-        <div className="card">
-          <div className="label">{s.chargeTaxes ? 'Taxes à remettre' : `Dépenses ${year}`}</div>
-          <div className="value"><CountUp value={s.chargeTaxes ? tpsNet + tvqNet : yExp.reduce((a, e) => a + e.subtotal, 0)} format={money} /></div>
-          <div className="sub">{s.chargeTaxes ? `TPS ${money(tpsNet)} · TVQ ${money(tvqNet)}` : `${yExp.length} reçu(s)`}</div>
-        </div>
-      </div>}
-
       {show('todo') && <ConfirmList />}
-      <Onboarding s={s} />
       {s.setupHidden && missing.length > 0 && <div className="notice">À compléter: <strong>{missing.join(', ')}</strong>. <Link to="/parametres">Paramètres →</Link></div>}
-
-      {show('followups') && followups.length > 0 && (
-        <div className="card followups">
-          <div className="card-head"><Bell size={18} /><h2>À relancer</h2></div>
-          {followups.map(({ doc: d, why }) => {
-            const c = data.clients.get(d.clientId);
-            return (
-              <div key={d.id} className="fu-row">
-                <div style={{ minWidth: 0 }}>
-                  <div><strong>{c?.name ?? 'Client'}</strong> <span className="small muted">· {d.type === 'invoice' ? 'facture' : 'soumission'} {d.number} · {money(tt(d).balance || tt(d).total)}</span></div>
-                  <div className="small muted">{why}</div>
-                </div>
-                <button className="btn small accent" onClick={() => setRelance({ doc: d, client: c, mode: 'choose' })}><Bell size={14} /> Relancer</button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <div className="grid two auto">
-        {show('today') && <div className="card">
+      {show('today') && <div className="grid auto">
+        <div className="card">
           <div className="card-head"><CalendarDays size={18} /><h2>Aujourd’hui</h2><span className="spacer" /><Link className="btn small" to="/agenda">Agenda</Link></div>
           {jobsToday.length === 0 ? (
             <div className="empty" style={{ padding: 18 }}>
@@ -221,8 +178,42 @@ export default function Dashboard({ onSearch }: { onSearch?: () => void }) {
               );
             })
           )}
-        </div>}
+        </div>
+      </div>}
+      <details className="dash-more">
+        <summary>Plus de chiffres et de détails</summary>
+      <button className="btn small" style={{ marginBottom: 10 }} onClick={() => setGoalOpen(true)}><Target size={15} /> Objectif du mois</button>
+      <div className="dash-masonry">
+      {show('kpi') && <div className="grid kpi">
+        <div className="card hot"><div className="label">Ventes {year}</div><div className="value"><CountUp value={sum(yInv, 'subtotal')} format={money} /></div><div className="sub">ce mois-ci: {money(sum(mInv, 'subtotal'))}</div></div>
+        <div className="card"><div className="label">À recevoir</div><div className="value"><CountUp value={sum(unpaid, 'balance')} format={money} /></div><div className="sub">{unpaid.length} facture(s){overdue.length ? ` · ${overdue.length} en retard` : ''}</div></div>
+        <div className="card"><div className="label">Km {year}</div><div className="value"><CountUp value={yKm} format={(n) => km(Math.round(n))} /></div><div className="sub">≈ {money(kmAllowance(yKm, s))} déductibles</div></div>
+        <div className="card">
+          <div className="label">{s.chargeTaxes ? 'Taxes à remettre' : `Dépenses ${year}`}</div>
+          <div className="value"><CountUp value={s.chargeTaxes ? tpsNet + tvqNet : yExp.reduce((a, e) => a + e.subtotal, 0)} format={money} /></div>
+          <div className="sub">{s.chargeTaxes ? `TPS ${money(tpsNet)} · TVQ ${money(tvqNet)}` : `${yExp.length} reçu(s)`}</div>
+        </div>
+      </div>}
 
+      {show('followups') && followups.length > 0 && (
+        <div className="card followups">
+          <div className="card-head"><Bell size={18} /><h2>À relancer</h2></div>
+          {followups.map(({ doc: d, why }) => {
+            const c = data.clients.get(d.clientId);
+            return (
+              <div key={d.id} className="fu-row">
+                <div style={{ minWidth: 0 }}>
+                  <div><strong>{c?.name ?? 'Client'}</strong> <span className="small muted">· {d.type === 'invoice' ? 'facture' : 'soumission'} {d.number} · {money(tt(d).balance || tt(d).total)}</span></div>
+                  <div className="small muted">{why}</div>
+                </div>
+                <button className="btn small accent" onClick={() => setRelance({ doc: d, client: c, mode: 'choose' })}><Bell size={14} /> Relancer</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="grid two auto">
         {show('unpaid') && <div className="card">
           <div className="card-head">{overdue.length ? <AlertTriangle size={18} color="var(--red)" /> : <FileText size={18} />}<h2>À encaisser</h2></div>
           {unpaid.length === 0 ? (
@@ -347,6 +338,7 @@ export default function Dashboard({ onSearch }: { onSearch?: () => void }) {
       )}
 
       </div>
+      </details>
 
       <div className="row hide-desktop" style={{ marginTop: 8 }}>
         <Link className="btn" to="/km"><Car size={16} /> Journal de bord</Link>

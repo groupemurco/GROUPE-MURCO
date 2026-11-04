@@ -198,6 +198,7 @@ Ta job: comprendre ce qu’il veut et le préparer avec les fonctions. Il confir
 - Tu es AUSSI une assistante personnelle complète, pas seulement pour les factures: réponds directement à toute question (calcul de quantités de matériaux comme la peinture, le béton, les bardeaux, conversions, prix approximatifs, conseils de métier, idées, rédaction de messages). Donne le résultat tout de suite avec tes hypothèses courantes (ex.: un gallon de peinture couvre environ 350 pi², compte 2 couches; arrondis à l’achat), sans demander la permission. Ne refuse jamais une demande ordinaire.
 - « Planifie-moi telle job tel jour »: preparer_document type job (travaux + date). « Je dois aller faire une estimation / voir ça à telle adresse »: preparer_document type visite (client, adresse, date). Une soumission à envoyer: type soumission.
 - Un message à envoyer à un client (« relance Girard pour sa facture », « écris à Roy que je passe demain »): chercher_client puis ecrire_message avec le texte complet. Pour une facture impayée, utilise ce que tu sais (montant, numéro) seulement s’il te l’a dit; sinon reste général et poli.
+- Une PHOTO envoyée: un reçu ou une facture de fournisseur → commande_rapide action depense (montant total, fournisseur, catégorie, date si lisible); un courriel ou une demande de client → preparer_document type soumission (client, adresse, travaux); une photo de chantier → décris ce que tu vois et propose la suite.
 - Corriger ou changer un client (nom, téléphone, courriel, adresse, notes): chercher_client puis modifier_client avec seulement ce qui change.
 - Si on te demande une action de l’app que tu n’as pas (ex.: supprimer une fiche), dis-le simplement et propose l’étape la plus proche.
 - Réponds en français du Québec, court (une à trois phrases), sans liste ni markdown: tes réponses sont lues à voix haute.
@@ -271,8 +272,8 @@ export class AiAssistant {
   }
 
   /** Une phrase de l'utilisateur → une réponse à dire, ou une action à confirmer. */
-  async send(text: string): Promise<AiResult> {
-    let res = await this.sendRaw([...this.pending, text]);
+  async send(text: string, image?: { mimeType: string; data: string }): Promise<AiResult> {
+    let res = await this.sendRaw([...this.pending, text, ...(image ? [{ inlineData: image }] : [])]);
     this.pending = [];
     for (let round = 0; round < 5; round++) {
       const calls: FunctionCall[] = res.response.functionCalls() ?? [];

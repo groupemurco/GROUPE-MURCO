@@ -1889,3 +1889,15 @@ button.agh-ring:hover .fg { stroke: var(--amber-ink); }
   .lea-teaser { bottom: calc(148px + var(--sab)); right: 12px; }
   .lea-panel { right: 8px; left: 8px; width: auto; max-width: none; bottom: calc(76px + var(--sab)); height: min(560px, calc(100vh - 170px - var(--sab))); }
 }
+.home-actions.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 861px) { .home-actions.three { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.dash-more { margin-top: 12px; }
+.dash-more > summary { cursor: pointer; color: var(--muted); font-weight: 600; padding: 10px 4px; list-style: none; }
+.dash-more > summary::before { content: '＋ '; }
+.dash-more[open] > summary::before { content: '－ '; }
+.nav-more > summary { cursor: pointer; list-style: none; padding: 8px 12px; color: var(--brand-muted); font-weight: 600; }
+.nav-more > summary::before { content: '＋ '; }
+.nav-more[open] > summary::before { content: '－ '; }
+.lea-photo { display: flex; align-items: center; gap: 8px; padding: 6px 10px 0; background: var(--surface); }
+.lea-photo img { height: 48px; border-radius: 8px; }
+.lea-card .btn, .lea-card a.btn { justify-self: start; }
