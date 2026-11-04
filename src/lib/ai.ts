@@ -273,8 +273,18 @@ export class AiAssistant {
 
   /** Une phrase de l'utilisateur → une réponse à dire, ou une action à confirmer. */
   async send(text: string, image?: { mimeType: string; data: string }): Promise<AiResult> {
-    let res = await this.sendRaw([...this.pending, text, ...(image ? [{ inlineData: image }] : [])]);
+    // Gemini refuse de mélanger une réponse de fonction avec du texte: on la renvoie seule d'abord
+    if (this.pending.length && this.chat) {
+      const answers = this.pending;
+      this.pending = [];
+      try {
+        await this.chat.sendMessage(answers);
+      } catch {
+        this.chat = null; // conversation abîmée: on repart à neuf
+      }
+    }
     this.pending = [];
+    let res = await this.sendRaw([text, ...(image ? [{ inlineData: image }] : [])]);
     for (let round = 0; round < 5; round++) {
       const calls: FunctionCall[] = res.response.functionCalls() ?? [];
       const say = (() => {
