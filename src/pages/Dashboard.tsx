@@ -54,7 +54,7 @@ export default function Dashboard(_props: { onSearch?: () => void }) {
     ]);
     return { docs, expenses, trips, clients: new Map(clients.map((c) => [c.id!, c])), jobsToday, leads, onSite: punches.filter((p) => !p.end) };
   }, [today]);
-  if (!data) return null;
+  if (!data) return <div className="skel-wrap" aria-busy="true"><div className="skel hero" /><div className="skel row" /><div className="skel row" /></div>;
 
   const invoices = data.docs.filter((d) => d.type === 'invoice' && d.status !== 'draft' && d.status !== 'cancelled');
   const tt = (d: Doc) => docTotals(d, s);

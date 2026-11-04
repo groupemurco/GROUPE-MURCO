@@ -182,3 +182,22 @@ table.list tr.click:hover td { background: color-mix(in srgb, var(--trust-2) 10%
 /* Vert = réussite et argent encaissé */
 .badge.green { color: var(--green); }
 .home-actions button:not(.ha-main) { color: var(--ink); }
+
+/* ===== Finition 5: psychologie UX — cibles tactiles, chargement, état vide, joie ===== */
+@media (max-width: 860px) {
+  .btn { min-height: 48px; }
+  .btn.small { min-height: 44px; padding-left: 14px; padding-right: 14px; }
+  .tabs button, .chip-btn, .seg button { min-height: 44px; }
+  input, select { min-height: 48px; }
+  .nav a, .more-menu a, .more-menu button { min-height: 48px; }
+  .icon-btn, .agh-btn.icon { min-width: 44px; min-height: 44px; }
+}
+.skel-wrap { display: grid; gap: var(--s3); padding: 2px 0; }
+.skel { border-radius: 22px; background: linear-gradient(100deg, var(--surface) 30%, color-mix(in srgb, var(--trust-1) 14%, var(--surface)) 50%, var(--surface) 70%); background-size: 220% 100%; animation: skel 1.3s ease-in-out infinite; border: 1px solid var(--line); }
+.skel.hero { height: 190px; }
+.skel.row { height: 84px; }
+@keyframes skel { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+.empty-ok { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 600; }
+.ok-check { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: color-mix(in srgb, var(--green) 22%, transparent); color: var(--green); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 45%, transparent); animation: pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+@keyframes pop { from { transform: scale(0.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+p, .small, .sub { max-width: 68ch; }

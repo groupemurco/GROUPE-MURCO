@@ -124,6 +124,9 @@ export default function VoiceJob() {
   const up = (p: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...p } : d));
 
   useEffect(() => () => rec.current?.stop(), []);
+  useEffect(() => {
+    if (done) void import('../lib/celebrate').then((m) => m.celebrate());
+  }, [done]);
 
   // Léa (la bulle de chat) envoie ici ce qu'il faut confirmer: facture, soumission, job, commande…
   const loc = useLocation();

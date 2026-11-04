@@ -572,6 +572,11 @@ class MurcoDB extends Dexie {
 
 export const db = new MurcoDB();
 
+// Petit moment de joie quand une facture devient payée
+db.docs.hook('updating', (mods, _key, obj) => {
+  if ((mods as { status?: string }).status === 'paid' && obj.status !== 'paid') setTimeout(() => void import('./celebrate').then((m) => m.celebrate()), 400);
+});
+
 export const SYNC_TABLES = ['settings', 'clients', 'docs', 'trips', 'expenses', 'emails', 'services', 'jobs', 'media', 'leads', 'members', 'punches', 'projects', 'orders', 'stock', 'messages', 'adminNotes'] as const;
 export type SyncTable = (typeof SYNC_TABLES)[number];
 

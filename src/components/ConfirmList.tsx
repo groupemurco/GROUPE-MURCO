@@ -56,7 +56,7 @@ export function ConfirmList({ limit = 5, title = 'À confirmer' }: { limit?: num
         {todos.length > 0 && <span className="todo-count">{todos.length}</span>}
       </div>
       {todos.length === 0 ? (
-        <div className="small muted">Rien à confirmer — tout est à jour.</div>
+        <div className="empty-ok"><span className="ok-check">✓</span> Tout est à jour. Beau travail!</div>
       ) : (
         <div className="todo-list">
           {shown.map((t) => {
