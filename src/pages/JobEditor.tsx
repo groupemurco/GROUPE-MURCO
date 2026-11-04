@@ -167,7 +167,7 @@ export default function JobEditor() {
       <div className="card">
         <div className="form-grid">
           <div className="field full">Client *
-            {full ? <ClientPicker value={j.clientId > 0 ? j.clientId : 0} onChange={(id) => up({ clientId: id })} autoFocus={isNew && !(j.clientId > 0)} /> : <strong style={{ color: 'var(--ink)' }}>{client?.name ?? '—'}</strong>}
+            {full ? <ClientPicker value={j.clientId > 0 ? j.clientId : 0} onChange={(id) => { up({ clientId: id }); if (isNew) setTimeout(() => { const el = document.getElementById('job-title'); el?.scrollIntoView({ block: 'center', behavior: 'smooth' }); (el as HTMLInputElement | null)?.focus(); }, 250); }} autoFocus={isNew && !(j.clientId > 0)} /> : <strong style={{ color: 'var(--ink)' }}>{client?.name ?? '—'}</strong>}
           </div>
           <label className="field">Date<input type="date" value={j.date} onChange={(e) => up({ date: e.target.value })} /></label>
           <label className="field">Heure<input type="time" value={j.time} onChange={(e) => up({ time: e.target.value })} /></label>
@@ -177,7 +177,7 @@ export default function JobEditor() {
             </select>
           </label>
           <label className="field full">Description de la job
-            <input value={j.title} placeholder="ex.: Nettoyage de gouttières + lavage de vitres" onChange={(e) => up({ title: e.target.value })} />
+            <input id="job-title" value={j.title} placeholder="ex.: Nettoyage de gouttières + lavage de vitres" onChange={(e) => up({ title: e.target.value })} />
           </label>
           <label className="field full">Adresse
             <div className="row" style={{ flexWrap: 'nowrap' }}>
