@@ -119,3 +119,65 @@ body::before { content: ''; position: fixed; inset: -25%; z-index: -1; pointer-e
 .lea-av { display: block; border-radius: 50%; object-fit: cover; object-position: 50% 22%; box-shadow: 0 0 0 2px var(--amber), 0 4px 14px rgba(0, 0, 0, 0.3); flex: none; background: var(--surface-2); }
 .lea-bubble { border: 0; background: transparent; }
 .lea-bubble .lea-av { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--amber), 0 10px 24px rgba(0, 0, 0, 0.4); }
+
+/* ===== Finition 4: couleurs de la psychologie — bleu = confiance, orange = action, vert = réussite (60-30-10) ===== */
+:root {
+  --bg: #f2f5fb; --surface: #ffffff; --surface-2: #e9eff9;
+  --ink: #111830; --muted: #465069;
+  --line: #d8e0ef; --line-strong: #b7c4dc;
+  --brand: #0e1730; --brand-2: #17234a;
+  --blue: #2457d6; --blue-soft: #e0e9ff;
+  --green: #12805a; --green-soft: #d9f4e8;
+  --amber: #f28c0f; --amber-ink: #8f4e00; --amber-soft: #ffeccf;
+  --trust-1: #5b9bff; --trust-2: #2f6bed; --trust-3: #1e4fc0;
+  --ring: 0 0 0 3px color-mix(in srgb, var(--trust-2) 35%, transparent);
+  --glow: color-mix(in srgb, var(--amber) 55%, transparent);
+  --glow-blue: color-mix(in srgb, var(--trust-2) 55%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0b101e; --surface: #141b2f; --surface-2: #1c2543;
+    --ink: #f5f8ff; --muted: #b9c3da;
+    --line: #26314f; --line-strong: #3a4a72;
+    --brand: #080c18; --brand-2: #131c36;
+    --blue: #6ea5ff; --blue-soft: #16295a;
+    --green: #3fd3a0; --green-soft: #0f3a2c;
+    --amber: #ffad33; --amber-ink: #ffc266; --amber-soft: #3d2a0a;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #0b101e; --surface: #141b2f; --surface-2: #1c2543;
+  --ink: #f5f8ff; --muted: #b9c3da;
+  --line: #26314f; --line-strong: #3a4a72;
+  --brand: #080c18; --brand-2: #131c36;
+  --blue: #6ea5ff; --blue-soft: #16295a;
+  --green: #3fd3a0; --green-soft: #0f3a2c;
+  --amber: #ffad33; --amber-ink: #ffc266; --amber-soft: #3d2a0a;
+}
+:focus-visible { outline-color: var(--trust-1); }
+input:focus, select:focus, textarea:focus { border-color: var(--trust-2); }
+body::before { background: radial-gradient(40% 34% at 16% 16%, color-mix(in srgb, var(--trust-2) 30%, transparent), transparent 70%), radial-gradient(34% 38% at 88% 12%, color-mix(in srgb, var(--amber) 16%, transparent), transparent 70%), radial-gradient(42% 36% at 72% 92%, rgba(40, 200, 160, 0.14), transparent 70%); }
+.ag-hero::after { background: conic-gradient(from var(--a), transparent 0 62%, #8dbbff 82%, transparent 96%); }
+.card { background-image: linear-gradient(180deg, color-mix(in srgb, var(--trust-1) 7%, transparent), transparent 45%); }
+
+/* Orange = action principale seulement */
+.btn.accent, .agh-btn.solid, .home-actions .ha-main { color: #1b1405; }
+
+/* Bleu = confiance: navigation, sélection, onglets, icônes d'information */
+.tabs button.on, .chip-btn.on, .seg button.on { background-image: linear-gradient(160deg, var(--trust-1), var(--trust-2)); background-color: var(--trust-2); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 6px 16px -6px var(--glow-blue); }
+.nav a.active { background: linear-gradient(135deg, rgba(91, 155, 255, 0.28), rgba(91, 155, 255, 0.08)); box-shadow: inset 0 0 0 1px rgba(120, 170, 255, 0.35); }
+.nav a.active .ico { background: linear-gradient(145deg, var(--trust-1), var(--trust-3)); color: #fff; box-shadow: 0 6px 14px -6px var(--glow-blue), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
+.card-head > svg:first-child { background: color-mix(in srgb, var(--trust-2) 18%, transparent); color: var(--blue); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--trust-2) 32%, transparent); }
+.home-actions button:not(.ha-main) svg { background: linear-gradient(145deg, var(--trust-1), var(--trust-3)); color: #fff; box-shadow: 0 8px 16px -8px var(--glow-blue); }
+.home-actions button:not(.ha-main) { background: linear-gradient(160deg, var(--surface), color-mix(in srgb, var(--trust-2) 12%, var(--surface))); }
+.code-input, .svc-grid b, .hbar b { color: var(--blue); }
+.lea-head { background: linear-gradient(135deg, #17234a, #0e1730); }
+.lea-msg.me { background-image: linear-gradient(160deg, var(--trust-1), var(--trust-2)); color: #fff; }
+.lea-bubble .lea-av, .lea-av { box-shadow: 0 0 0 2px var(--trust-1), 0 4px 14px rgba(0, 0, 0, 0.3); }
+.lea-bubble .lea-av { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--trust-2), 0 10px 24px rgba(0, 0, 0, 0.4); }
+.lea-bubble::after { border-color: color-mix(in srgb, var(--trust-1) 70%, transparent); }
+table.list tr.click:hover td { background: color-mix(in srgb, var(--trust-2) 10%, var(--surface-2)); }
+.card:hover { border-color: color-mix(in srgb, var(--trust-2) 45%, var(--line)); }
+
+/* Vert = réussite et argent encaissé */
+.badge.green { color: var(--green); }
