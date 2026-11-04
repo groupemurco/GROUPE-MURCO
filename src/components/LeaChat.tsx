@@ -10,6 +10,7 @@ import { useSettings } from '../lib/hooks';
 import { buildTodos, snoozeTodo, type Todo } from '../lib/todo';
 import { todayISO } from '../lib/utils';
 import leaPhoto from '../assets/lea.png';
+import { listen, speechSupported, type Listening } from '../lib/speech';
 import { RelanceModal } from './RelanceModal';
 import { errMsg, useToast } from './Toast';
 
@@ -45,8 +46,11 @@ export function LeaChat() {
   const [relanceDoc, setRelanceDoc] = useState<Doc | null>(null);
   const [photo, setPhoto] = useState<{ mimeType: string; data: string; url: string } | null>(null);
   const ai = useRef<AiAssistant | null>(null);
-  const [call, setCall] = useState<'off' | 'connecting' | 'on'>('off');
-  const liveRef = useRef<{ stop: () => Promise<void> } | null>(null);
+  const [call, setCall] = useState<'off' | 'on'>('off');
+  const [phase, setPhase] = useState<'listen' | 'think' | 'speak'>('listen');
+  const [heard, setHeard] = useState('');
+  const callRef = useRef(false);
+  const listenRef = useRef<Listening | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const services = useLiveQuery(() => db.services.orderBy('order').toArray(), []) ?? [];
   const clients = useLiveQuery(() => db.clients.toArray(), []) ?? [];
@@ -74,29 +78,40 @@ export function LeaChat() {
     setTeaser(true);
   }, [todos, jobsToday]);
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [msgs, open, busy]);
-  useEffect(() => { setOpen(false); void hangUpRef.current(); }, [loc.pathname]);
+  useEffect(() => { setOpen(false); hangUpRef.current(); }, [loc.pathname]);
 
-  const showResult = async (r: AiResult, ask: string) => {
+  const showResult = async (r: AiResult, ask: string): Promise<string> => {
+    let spoken = r.text;
     if (r.kind === 'say') setMsgs((m) => [...m, { text: r.text }]);
     else if (r.kind === 'message') {
       const c = clientsRef.current.find((x) => x.id === r.message.clientId);
-      if (!c) setMsgs((m) => [...m, { text: 'Je ne trouve pas ce client. Redis-moi son nom.' }]);
-      else setMsgs((m) => [...m, { text: r.text || `Voici le message pour ${c.name}. Change ce que tu veux, puis envoie-le.`, message: { ...r.message, name: c.name, phone: c.phone, email: c.email, subject: r.message.subject ?? `Message de ${s.companyName}` } }]);
+      if (!c) setMsgs((m) => [...m, { text: (spoken = 'Je ne trouve pas ce client. Redis-moi son nom.') }]);
+      else {
+        spoken = r.text || `Voici le message pour ${c.name}. Change ce que tu veux, puis envoie-le.`;
+        setMsgs((m) => [...m, { text: spoken, message: { ...r.message, name: c.name, phone: c.phone, email: c.email, subject: r.message.subject ?? `Message de ${s.companyName}` } }]);
+      }
     } else if (r.kind === 'client') {
       const c = clientsRef.current.find((x) => x.id === r.edit.clientId);
-      if (!c) setMsgs((m) => [...m, { text: 'Je ne trouve pas ce client. Redis-moi son nom.' }]);
-      else setMsgs((m) => [...m, { text: r.text || `Je change la fiche de ${c.name}. Confirme.`, edit: { client: c, edit: r.edit } }]);
+      if (!c) setMsgs((m) => [...m, { text: (spoken = 'Je ne trouve pas ce client. Redis-moi son nom.') }]);
+      else {
+        spoken = r.text || `Je change la fiche de ${c.name}. Confirme.`;
+        setMsgs((m) => [...m, { text: spoken, edit: { client: c, edit: r.edit } }]);
+      }
     } else if (r.kind === 'intent') {
       const p = await propose(r.intent);
-      setMsgs((m) => [...m, { text: p.say || r.text, prop: p }]);
+      spoken = p.say || r.text;
+      setMsgs((m) => [...m, { text: spoken, prop: p }]);
     } else {
-      setMsgs((m) => [...m, { text: r.text || 'C’est prêt. Je te l’ouvre pour que tu confirmes.', handoff: { ask, result: r } }]);
+      spoken = r.text || 'C’est prêt. Je te l’ouvre pour que tu confirmes.';
+      setMsgs((m) => [...m, { text: spoken, handoff: { ask, result: r } }]);
     }
+    return spoken;
   };
 
-  const send = async (override?: string) => {
+  /** Une phrase (écrite ou dite) → réponse de Léa. Renvoie ce que Léa dit, pour la voix. */
+  const send = async (override?: string): Promise<string> => {
     const text = (override ?? input).trim() || (photo ? 'Voici une photo. Qu’est-ce que je dois en faire?' : '');
-    if (!text || busy) return;
+    if (!text || busy) return '';
     const img = photo;
     setInput('');
     setPhoto(null);
@@ -113,43 +128,91 @@ export function LeaChat() {
         });
       }
       const r = await ai.current.send(text, img ? { mimeType: img.mimeType, data: img.data } : undefined);
-      await showResult(r, text);
+      return await showResult(r, text);
     } catch (e) {
-      setMsgs((m) => [...m, { text: aiErrorMessage(e).replace(' J’utilise l’assistant de base.', '') }]);
+      const m = aiErrorMessage(e).replace(' J’utilise l’assistant de base.', '');
+      setMsgs((all) => [...all, { text: m }]);
       ai.current = null;
+      return 'Oups, j’ai eu un problème. Peux-tu répéter?';
     } finally {
       setBusy(false);
     }
   };
 
-  const hangUpRef = useRef<() => Promise<void>>(async () => {});
-  const hangUp = async () => {
-    const h = liveRef.current;
-    liveRef.current = null;
+  // ===== Appel vocal à tour de rôle: Léa écoute, réfléchit, répond, puis réécoute (pas de micro ouvert pendant qu'elle parle → pas d'écho) =====
+  const hangUpRef = useRef<() => void>(() => {});
+  const hangUp = () => {
+    callRef.current = false;
+    try { listenRef.current?.stop(); } catch { /* déjà arrêté */ }
+    listenRef.current = null;
+    try { window.speechSynthesis?.cancel(); } catch { /* rien à couper */ }
+    setHeard('');
     setCall('off');
-    try { await h?.stop(); } catch { /* déjà raccroché */ }
   };
   hangUpRef.current = hangUp;
-  const toggleCall = async () => {
-    if (call !== 'off') return void hangUp();
-    const { liveSupported, startLive } = await import('../lib/live');
-    if (!liveSupported()) return void setMsgs((m) => [...m, { text: 'Ton appareil ne permet pas la conversation vocale ici. Écris-moi, ça marche aussi.' }]);
-    setCall('connecting');
+  const speak = (text: string) => new Promise<void>((done) => {
+    let ended = false;
+    const fin = () => { if (!ended) { ended = true; done(); } };
     try {
-      liveRef.current = await startLive({
-        company: s.companyName,
-        today: todayISO(),
-        services: services.map((x) => ({ code: x.code, name: x.name, unit: x.unit, price: x.price })),
-        clients: () => clientsRef.current.map((c) => ({ id: c.id, name: c.name, address: c.address, phone: c.phone })),
-        onResult: (r) => void showResult(r, ''),
-        onClose: () => { liveRef.current = null; setCall('off'); },
-      });
-      setCall('on');
-    } catch (e) {
-      setCall('off');
-      const m = e instanceof Error ? e.message : String(e);
-      setMsgs((all) => [...all, { text: /NotAllowed|Permission|denied/i.test(m + ((e as { name?: string })?.name ?? '')) ? 'Autorise le micro pour pouvoir me parler.' : aiErrorMessage(e).replace(' J’utilise l’assistant de base.', '') }]);
+      const u = new SpeechSynthesisUtterance(text.replace(/’/g, "'"));
+      u.lang = 'fr-CA';
+      u.rate = 1.03;
+      u.onend = fin;
+      u.onerror = fin;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+      setTimeout(fin, 1500 + text.length * 80); // certains Android n'annoncent jamais la fin
+    } catch { fin(); }
+  });
+  const voiceTurn = async (text: string) => {
+    setPhase('think');
+    const spoken = await send(text);
+    if (!callRef.current) return;
+    if (spoken) {
+      setPhase('speak');
+      await speak(spoken);
     }
+    if (callRef.current) listenTurn();
+  };
+  const listenTurn = () => {
+    if (!callRef.current) return;
+    setPhase('listen');
+    setHeard('');
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const l = listen(
+      (t, fin) => {
+        setHeard(t);
+        if (timer) clearTimeout(timer);
+        // On considère la phrase finie après une petite pause de silence
+        if (t) timer = setTimeout(() => listenRef.current?.stop(), fin ? 1300 : 2400);
+      },
+      (err, text) => {
+        if (timer) clearTimeout(timer);
+        listenRef.current = null;
+        setHeard('');
+        if (!callRef.current) return;
+        if (text) return void voiceTurn(text);
+        if (err && /Micro refusé|Dictée/.test(err)) {
+          setMsgs((m) => [...m, { text: err }]);
+          return hangUp();
+        }
+        setTimeout(listenTurn, 400);
+      },
+    );
+    listenRef.current = l;
+    if (!l) {
+      setMsgs((m) => [...m, { text: 'La reconnaissance vocale n’est pas disponible ici. Écris-moi, ça marche aussi.' }]);
+      hangUp();
+    }
+  };
+  const toggleCall = async () => {
+    if (call !== 'off') return hangUp();
+    if (!speechSupported()) return void setMsgs((m) => [...m, { text: 'Ton appareil ne permet pas la conversation vocale ici. Écris-moi, ça marche aussi.' }]);
+    callRef.current = true;
+    setCall('on');
+    setPhase('speak');
+    await speak('Allô, c’est Léa. Je t’écoute.');
+    if (callRef.current) listenTurn();
   };
 
   const confirmEdit = async (i: number) => {
@@ -225,7 +288,7 @@ export function LeaChat() {
           <header className="lea-head">
             <LeaAvatar size={38} />
             <div><strong>Léa</strong><small>Agente administrative</small></div>
-            <button className="icon-btn" aria-label="Fermer" onClick={() => { void hangUp(); setOpen(false); }}><X size={18} /></button>
+            <button className="icon-btn" aria-label="Fermer" onClick={() => { hangUp(); setOpen(false); }}><X size={18} /></button>
           </header>
           <div className="lea-body">
             <div className="lea-msg">{greet}</div>
@@ -281,7 +344,7 @@ export function LeaChat() {
             <>
             {photo && <div className="lea-photo"><img src={photo.url} alt="" /><button className="icon-btn" aria-label="Retirer la photo" onClick={() => setPhoto(null)}><X size={14} /></button></div>}
             {call !== 'off' && (
-              <div className="lea-call"><span className="lea-wave"><i /><i /><i /><i /></span>{call === 'connecting' ? 'Je me connecte…' : 'En appel avec Léa — parle, je t’écoute.'}<button type="button" className="btn small danger" onClick={() => void hangUp()}>Raccrocher</button></div>
+              <div className="lea-call"><span className={`lea-wave ${phase === 'listen' ? '' : 'calm'}`}><i /><i /><i /><i /></span><span className="lea-call-txt">{phase === 'listen' ? (heard || 'Je t’écoute… parle quand tu veux.') : phase === 'think' ? 'Je réfléchis…' : 'Léa parle…'}</span><button type="button" className="btn small danger" onClick={hangUp}>Raccrocher</button></div>
             )}
             {!msgs.length && !busy && call === 'off' && (
               <div className="lea-chips">
