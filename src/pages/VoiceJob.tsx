@@ -6,7 +6,7 @@ import { AddressInput } from '../components/AddressInput';
 import { ClientPicker } from '../components/ClientPicker';
 import { lineFromService, LineItems } from '../components/LineItems';
 import { errMsg, useToast } from '../components/Toast';
-import { blankJob, jobToInvoice } from '../lib/agenda';
+import { blankJob, jobToInvoice, smsLink } from '../lib/agenda';
 import { db, getSettings, takeNextNumber, type Doc, type GeoPoint, type LineItem } from '../lib/db';
 import { suggestAddresses } from '../lib/geo';
 import { useSettings } from '../lib/hooks';
@@ -126,6 +126,8 @@ export default function VoiceJob() {
   useEffect(() => () => rec.current?.stop(), []);
   const [prop, setProp] = useState<Proposal | null>(null);
   const [relanceDoc, setRelanceDoc] = useState<Proposal['relance'] | null>(null);
+  // Message écrit par l'IA pour un client: modifiable avant l'envoi
+  const [msg, setMsg] = useState<{ name: string; phone: string; email: string; text: string; subject: string } | null>(null);
   // Après « Analyser »: on amène la réponse à l'écran (sur cell elle était cachée en haut)
   const topRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -205,6 +207,7 @@ export default function VoiceJob() {
 
   const aiTurn = async (text: string, preset?: AiResult) => {
     setProp(null);
+    setMsg(null);
     setDone(null);
     setHeard('');
     setConvo((c) => [...c, { me: true, text }]);
@@ -217,6 +220,7 @@ export default function VoiceJob() {
           clients: () => clientsRef.current.map((c) => ({ id: c.id, name: c.name, address: c.address, phone: c.phone })),
           today: todayISO(),
           model: s?.aiModel || undefined,
+          assistantName: s?.aiName || undefined,
         });
       }
       const r = preset ?? (await aiRef.current.send(text));
@@ -228,6 +232,15 @@ export default function VoiceJob() {
         const d = fromAi(r.doc);
         proceed(d);
         if (r.doc.address) autoAddress(r.doc.address);
+      } else if (r.kind === 'message') {
+        setDraft(null);
+        const cur = clients.find((x) => x.id === r.message.clientId);
+        if (!cur) {
+          notify('Client introuvable: dis-moi son nom.', 'err');
+          return;
+        }
+        setMsg({ name: cur.name, phone: cur.phone, email: cur.email, text: r.message.text, subject: r.message.subject ?? `Message de ${s?.companyName || 'votre entrepreneur'}` });
+        say(r.text || `Voici le message pour ${cur.name}. Relis-le, change ce que tu veux et envoie-le.`);
       } else if (r.kind === 'client') {
         setDraft(null);
         const { clientId, ...fields } = r.edit;
@@ -387,6 +400,7 @@ export default function VoiceJob() {
     try {
       liveRef.current = await startLive({
         company: s?.companyName ?? '',
+        assistantName: s?.aiName || undefined,
         today: todayISO(),
         services: services.map((x) => ({ code: x.code, name: x.name, unit: x.unit, price: x.price })),
         clients: () => clientsRef.current.map((c) => ({ id: c.id, name: c.name, address: c.address, phone: c.phone })),
@@ -606,6 +620,19 @@ export default function VoiceJob() {
             </div>
           )}
           <button className="btn small" style={{ marginTop: 10 }} onClick={() => { setProp(null); setHeard(''); resetAi(); }}>{prop.confirm ? 'Annuler' : 'Autre chose'}</button>
+        </div>
+      )}
+      {msg && (
+        <div className="card vj-prop">
+          <h2 style={{ marginTop: 0 }}>Message pour {msg.name}</h2>
+          <label className="field">Courriel — objet<input value={msg.subject} onChange={(e) => setMsg({ ...msg, subject: e.target.value })} /></label>
+          <label className="field">Message<textarea rows={6} value={msg.text} onChange={(e) => setMsg({ ...msg, text: e.target.value })} /></label>
+          <div className="vj-done-actions">
+            {msg.phone && <a className="btn accent big" href={smsLink(msg.phone, msg.text)}>Envoyer par texto</a>}
+            {msg.email && <a className="btn accent" href={`mailto:${msg.email}?subject=${encodeURIComponent(msg.subject)}&body=${encodeURIComponent(msg.text)}`}>Envoyer par courriel</a>}
+            {!msg.phone && !msg.email && <span className="small muted">Ce client n’a ni téléphone ni courriel: ajoute-en un dans sa fiche.</span>}
+          </div>
+          <button className="btn small" style={{ marginTop: 10 }} onClick={() => { setMsg(null); setHeard(''); resetAi(); }}>Annuler</button>
         </div>
       )}
       {prop?.todo && <ConfirmList limit={8} />}

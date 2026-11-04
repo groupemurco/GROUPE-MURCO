@@ -320,6 +320,9 @@ function AiSection({ s, up }: { s: Settings; up: (p: Partial<Settings>) => void 
       ) : (
         <>
           <label className="check"><input type="checkbox" checked={on} onChange={(e) => up({ aiAssistant: e.target.checked })} /> Utiliser l’assistant IA (sinon l’assistant de base, sans Internet)</label>
+          <label className="field" style={{ marginTop: 10 }}>Nom de ta secrétaire IA
+            <input value={s.aiName ?? ''} placeholder="Ex.: Léa" onChange={(e) => up({ aiName: e.target.value })} />
+          </label>
           <div className="row" style={{ marginTop: 10 }}>
             <button className="btn primary" disabled={busy || !on} onClick={test}>Tester</button>
             <span className="small">{result}</span>

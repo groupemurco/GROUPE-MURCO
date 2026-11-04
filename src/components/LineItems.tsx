@@ -1,7 +1,8 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Calculator, Search } from 'lucide-react';
 import { useState } from 'react';
 import type { CalcRow, LineItem, Service } from '../lib/db';
-import { UNITS } from '../lib/db';
+import { db, UNITS } from '../lib/db';
 import { lineAmount, lineHitsMinimum, money, round2 } from '../lib/utils';
 import { Modal } from './Modal';
 import { NumInput } from './NumInput';
@@ -30,7 +31,14 @@ export function LineItems({ items, services, onChange, lang = 'fr' }: { items: L
 
   const [q, setQ] = useState('');
   const nq = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-  const shown = nq ? services.filter((x) => `${x.code} ${x.name}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(nq)) : services;
+  // Les plus utilis\u00e9s dans tes documents; le reste s'affiche quand on tape quelques lettres.
+  const used = useLiveQuery(async () => {
+    const n = new Map<string, number>();
+    for (const d of await db.docs.toArray()) for (const l of d.items ?? []) if (l.code) n.set(l.code.toUpperCase(), (n.get(l.code.toUpperCase()) ?? 0) + 1);
+    return n;
+  }, []);
+  const popular = [...services].sort((a, b) => (used?.get(b.code.toUpperCase()) ?? 0) - (used?.get(a.code.toUpperCase()) ?? 0)).slice(0, 5);
+  const shown = nq ? services.filter((x) => `${x.code} ${x.name}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(nq)).slice(0, 12) : popular;
   const addService = (sv: Service) => {
     const last = items[items.length - 1];
     const line = lineFromService(sv, 1, lang);
@@ -93,14 +101,15 @@ export function LineItems({ items, services, onChange, lang = 'fr' }: { items: L
         <button className="btn" onClick={() => onChange([...items, emptyLine()])}>+ Ligne</button>
         <span className="small muted">Tape un code ou clique un service:</span>
       </div>
-      {services.length > 8 && (
+      {services.length > 5 && (
         <label className="svc-search">
           <Search size={16} />
-          <input value={q} placeholder="Chercher un service (code ou nom)…" onChange={(e) => setQ(e.target.value)}
+          <input value={q} placeholder="Tape 3 lettres du service ou du code…" onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && shown[0]) { e.preventDefault(); addService(shown[0]); setQ(''); } }} aria-label="Chercher un service" />
         </label>
       )}
       <div className="svc-grid">
+        {nq && !shown.length && <span className="small muted">Aucun service trouvé.</span>}
         {shown.map((s) => (
           <button key={s.id} onClick={() => addService(s)} title={`${money(s.price)} / ${s.unit}${s.minimum ? ` · min. ${money(s.minimum)}` : ''}`}>
             <b>{s.code}</b>{s.name}

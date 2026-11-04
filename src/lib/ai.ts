@@ -45,7 +45,15 @@ export interface AiClientEdit {
   address?: string;
   notes?: string;
 }
+/** Message écrit par l'IA pour un client (relance, rappel, confirmation…): le patron le relit et l'envoie. */
+export interface AiMessage {
+  clientId: number;
+  text: string;
+  channel?: 'texto' | 'courriel';
+  subject?: string;
+}
 export type AiResult =
+  | { kind: 'message'; message: AiMessage; text: string }
   | { kind: 'say'; text: string }
   | { kind: 'order'; order: AiOrder; text: string }
   | { kind: 'doc'; doc: AiDoc; text: string }
@@ -58,6 +66,15 @@ export function toClientEdit(a: Record<string, unknown>): AiClientEdit | null {
   const edit: AiClientEdit = { clientId: Number(a.client_id), name: str(a.nom), contact: str(a.contact), phone: str(a.telephone), email: str(a.courriel), address: str(a.adresse), notes: str(a.notes) };
   if (!Number.isFinite(edit.clientId)) return null;
   return Object.entries(edit).some(([k, v]) => k !== 'clientId' && v !== undefined) ? edit : null;
+}
+
+/** Appel de ecrire_message → message à relire et envoyer (null si le client ou le texte manquent). */
+export function toMessage(a: Record<string, unknown>): AiMessage | null {
+  const text = typeof a.texte === 'string' ? a.texte.trim() : '';
+  const clientId = Number(a.client_id);
+  if (!text || !Number.isFinite(clientId)) return null;
+  const channel = a.canal === 'courriel' ? 'courriel' : a.canal === 'texto' ? 'texto' : undefined;
+  return { clientId, text, channel, subject: typeof a.sujet === 'string' && a.sujet.trim() ? a.sujet.trim() : undefined };
 }
 
 export const TOOLS: FunctionDeclaration[] = [
@@ -110,6 +127,19 @@ export const TOOLS: FunctionDeclaration[] = [
     }),
   },
   {
+    name: 'ecrire_message',
+    description: 'Écrit un message à un client (relance de facture ou de soumission, rappel de rendez-vous, confirmation, remerciement…). Cherche-le d’abord avec chercher_client. Rédige le message complet, prêt à envoyer, signé par l’entreprise. L’app l’affiche pour que le patron le relise, le change et l’envoie.',
+    parameters: Schema.object({
+      properties: {
+        client_id: Schema.number({ description: 'id du client trouvé avec chercher_client' }),
+        texte: Schema.string({ description: 'Le message complet, poli, en français du Québec' }),
+        canal: Schema.string({ description: 'texto ou courriel (texto par défaut si le client a un téléphone)' }),
+        sujet: Schema.string({ description: 'Objet du courriel (si courriel)' }),
+      },
+      optionalProperties: ['canal', 'sujet'],
+    }),
+  },
+  {
     name: 'commander_fournisseur',
     description: 'Prépare une commande de matériaux au fournisseur (ex.: « commande 3 gallons de blanc chez Rona pour jeudi »). L’app l’affiche pour qu’il l’envoie par texto ou courriel.',
     parameters: Schema.object({
@@ -150,11 +180,12 @@ export const TOOLS: FunctionDeclaration[] = [
   },
 ];
 
-export function systemPrompt(company: string, services: AiService[], today: string): string {
+export function systemPrompt(company: string, services: AiService[], today: string, assistantName = ''): string {
   const d = new Date(today + 'T12:00:00');
   const day = d.toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const list = services.map((s) => `${s.code}: ${s.name} (${s.price} $ / ${s.unit})`).join('\n');
-  return `Tu es la secrétaire de ${company || 'l’entreprise'}, une entreprise de services au Québec. Le patron te parle en conduisant ou sur un chantier, souvent à voix (la dictée fait des fautes: devine le sens).
+  const who = assistantName.trim() ? ` Tu t’appelles ${assistantName.trim()}: réponds à ce prénom et présente-toi ainsi si on te le demande.` : '';
+  return `Tu es la secrétaire de ${company || 'l’entreprise'}, une entreprise de services au Québec.${who} Le patron te parle en conduisant ou sur un chantier, souvent à voix (la dictée fait des fautes: devine le sens).
 Aujourd’hui: ${day} (${today}).
 
 Ta job: comprendre ce qu’il veut et le préparer avec les fonctions. Il confirme toujours dans l’app avant que ce soit créé.
@@ -167,6 +198,7 @@ Ta job: comprendre ce qu’il veut et le préparer avec les fonctions. Il confir
 - Dès que tu as l’essentiel, appelle preparer_document (ou commande_rapide pour le reste) sans redemander de confirmation.
 - Tu es AUSSI une assistante personnelle complète, pas seulement pour les factures: réponds directement à toute question (calcul de quantités de matériaux comme la peinture, le béton, les bardeaux, conversions, prix approximatifs, conseils de métier, idées, rédaction de messages). Donne le résultat tout de suite avec tes hypothèses courantes (ex.: un gallon de peinture couvre environ 350 pi², compte 2 couches; arrondis à l’achat), sans demander la permission. Ne refuse jamais une demande ordinaire.
 - « Planifie-moi telle job tel jour »: preparer_document type job (travaux + date). « Je dois aller faire une estimation / voir ça à telle adresse »: preparer_document type visite (client, adresse, date). Une soumission à envoyer: type soumission.
+- Un message à envoyer à un client (« relance Girard pour sa facture », « écris à Roy que je passe demain »): chercher_client puis ecrire_message avec le texte complet. Pour une facture impayée, utilise ce que tu sais (montant, numéro) seulement s’il te l’a dit; sinon reste général et poli.
 - Corriger ou changer un client (nom, téléphone, courriel, adresse, notes): chercher_client puis modifier_client avec seulement ce qui change.
 - Si on te demande une action de l’app que tu n’as pas (ex.: supprimer une fiche), dis-le simplement et propose l’étape la plus proche.
 - Réponds en français du Québec, court (une à trois phrases), sans liste ni markdown: tes réponses sont lues à voix haute.
@@ -200,7 +232,7 @@ export class AiAssistant {
   private chat: ChatSession | null = null;
   private model = '';
   private pending: Part[] = []; // réponses aux fonctions d'action (envoyées avec le prochain message)
-  constructor(private ctx: { company: string; services: AiService[]; clients: () => AiClient[]; today: string; model?: string }) {}
+  constructor(private ctx: { company: string; services: AiService[]; clients: () => AiClient[]; today: string; model?: string; assistantName?: string }) {}
 
   private open(model: string) {
     const app = firebaseApp();
@@ -208,7 +240,7 @@ export class AiAssistant {
     const ai = getAI(app, { backend: new VertexAIBackend('global') });
     const gm = getGenerativeModel(ai, {
       model,
-      systemInstruction: systemPrompt(this.ctx.company, this.ctx.services, this.ctx.today),
+      systemInstruction: systemPrompt(this.ctx.company, this.ctx.services, this.ctx.today, this.ctx.assistantName),
       tools: [{ functionDeclarations: TOOLS }],
       generationConfig: { temperature: 0.2 },
     }, { timeout: AI_TIMEOUT_MS });
@@ -277,6 +309,14 @@ export class AiAssistant {
             },
           };
           answers.push({ functionResponse: { name: c.name, response: { resultat: 'Résumé affiché; l’utilisateur va le vérifier et confirmer.' } } });
+        } else if (c.name === 'ecrire_message') {
+          const message = toMessage(a);
+          if (message) {
+            action = { kind: 'message', text: say, message };
+            answers.push({ functionResponse: { name: c.name, response: { resultat: 'Message affiché; l’utilisateur va le relire et l’envoyer.' } } });
+          } else {
+            answers.push({ functionResponse: { name: c.name, response: { erreur: 'Il faut client_id (de chercher_client) et le texte du message.' } } });
+          }
         } else if (c.name === 'modifier_client') {
           const edit = toClientEdit(a);
           if (edit) {

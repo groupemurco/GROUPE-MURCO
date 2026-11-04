@@ -3,7 +3,7 @@
 // passent par les mêmes fonctions que l'assistant écrit et sont toujours confirmées à l'écran.
 import { getAI, getLiveGenerativeModel, ResponseModality, startAudioConversation, VertexAIBackend, type AudioConversationController, type FunctionCall, type FunctionResponse } from 'firebase/ai';
 import type { Intent, IntentKind } from './assistant';
-import { findClients, systemPrompt, toClientEdit, TOOLS, type AiClient, type AiDoc, type AiResult, type AiService } from './ai';
+import { findClients, systemPrompt, toClientEdit, toMessage, TOOLS, type AiClient, type AiDoc, type AiResult, type AiService } from './ai';
 import { firebaseApp } from './sync';
 
 const LIVE_MODELS = ['gemini-live-2.5-flash'];
@@ -12,6 +12,7 @@ const INTENTS: Record<string, IntentKind> = { payee: 'payee', relancer: 'relance
 export interface LiveConfig {
   company: string;
   today: string;
+  assistantName?: string;
   services: AiService[];
   clients: () => AiClient[];
   /** Une action à afficher et à confirmer (facture, soumission, job, commande…). */
@@ -43,6 +44,10 @@ function toResult(name: string, a: Record<string, unknown>): AiResult | null {
       lines: lignes.map((l) => ({ code: l.code ? String(l.code).toUpperCase() : undefined, description: l.description ? String(l.description) : undefined, quantity: Number(l.quantite) > 0 ? Number(l.quantite) : 1, unitPrice: typeof l.prix_unitaire === 'number' ? l.prix_unitaire : undefined })),
     };
     return { kind: 'doc', text: '', doc };
+  }
+  if (name === 'ecrire_message') {
+    const message = toMessage(a);
+    return message ? { kind: 'message', text: '', message } : null;
   }
   if (name === 'modifier_client') {
     const edit = toClientEdit(a);
@@ -88,7 +93,7 @@ export async function startLive(cfg: LiveConfig): Promise<LiveHandle> {
   const app = firebaseApp();
   if (!app) throw new Error('Firebase n’est pas configuré');
   const ai = getAI(app, { backend: new VertexAIBackend('global') });
-  const instruction = systemPrompt(cfg.company, cfg.services, cfg.today) + VOICE_RULES;
+  const instruction = systemPrompt(cfg.company, cfg.services, cfg.today, cfg.assistantName) + VOICE_RULES;
   let last: unknown;
   for (const model of LIVE_MODELS) {
     try {
