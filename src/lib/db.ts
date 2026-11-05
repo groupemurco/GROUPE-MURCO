@@ -304,6 +304,7 @@ export const EXPENSE_CATEGORIES = [
   'Fournitures de bureau',
   'Publicité',
   'Frais bancaires',
+  'Comptabilité',
   'Autre',
 ] as const;
 
