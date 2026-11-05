@@ -340,22 +340,12 @@ function Shell() {
         </aside>
 
         <main className={`main ${editor ? 'is-editor' : ''}`}>
-          <header className="topbar">
-            {isRoot ? (
-              <>
-                <div className="tb-title"><CompanyMark s={s} /><span>{s.companyName}</span></div>
-              </>
-            ) : (
-              <>
-                <button className="tb-btn tb-back" onClick={goBack} aria-label="Retour"><ChevronLeft size={26} /> Retour</button>
-                <div className="tb-title"><span>{pageTitle}</span></div>
-              </>
-            )}
-            <button className="tb-btn" onClick={() => setCmd(true)} aria-label="Rechercher"><Search size={21} /></button>
-            <NavLink className="tb-btn" to="/parametres" aria-label={`Synchronisation: ${st.status}`}>
-              <span className={`tb-dot ${st.status === 'ok' ? 'ok' : st.status === 'error' ? 'err' : ''}`} />
-            </NavLink>
-          </header>
+          {!isRoot && (
+            <header className="topbar">
+              <button className="tb-btn tb-back" onClick={goBack} aria-label="Retour"><ChevronLeft size={26} /> Retour</button>
+              <div className="tb-title"><span>{pageTitle}</span></div>
+            </header>
+          )}
           {full && !loc.pathname.startsWith('/abonnement') && (billing.kind === 'expired' || billing.kind === 'past_due' || (billing.kind === 'trial' && (billing.daysLeft ?? 99) <= 7)) && (
             <Link to="/abonnement" className={`bill-banner ${billing.kind === 'trial' ? '' : 'bad'}`}>
               <Crown size={16} />

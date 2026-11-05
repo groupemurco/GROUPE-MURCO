@@ -284,3 +284,10 @@ select option:checked, select option:hover { background-color: var(--trust-2, #2
     box-shadow: none;
   }
 }
+
+/* Plus de barre du haut sur l'accueil; ailleurs seulement « Retour », qui défile avec la page (rien ne bouge) */
+@media (max-width: 860px) {
+  .main { padding-top: calc(var(--sat) + 16px); }
+  .topbar { position: static; min-height: 0; padding: 0 0 2px; margin: 0 0 10px; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; border: 0; }
+  .topbar .tb-title { font-size: 1.15rem; }
+}
