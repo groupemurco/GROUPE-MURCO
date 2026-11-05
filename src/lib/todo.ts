@@ -45,7 +45,7 @@ export async function buildTodos(today = todayISO()): Promise<Todo[]> {
   }
   // 2. Jobs faites pas encore facturées
   for (const j of jobs) {
-    if (j.status !== 'fait' || (j.docId && docs.some((d) => d.id === j.docId))) continue;
+    if (j.status !== 'fait' || j.type === 'estimation' || (j.docId && docs.some((d) => d.id === j.docId))) continue;
     const amt = j.items.reduce((a, it) => a + (it.quantity || 0) * (it.unitPrice || 0), 0);
     out.push({ key: `facturer:${j.id}`, kind: 'facturer', job: j, client: cl.get(j.clientId), amount: amt, title: `Facturer la job de ${name(j.clientId)}`, sub: `${j.title || 'Job'} · faite le ${j.date}${amt ? ` · ${money(amt)}` : ''}` });
   }
