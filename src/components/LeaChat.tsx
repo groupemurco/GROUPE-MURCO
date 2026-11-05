@@ -6,7 +6,8 @@ import { jobToInvoice, smsLink } from '../lib/agenda';
 import { AiAssistant, aiConfigured, aiErrorMessage, type AiClientEdit, type AiDoc, type AiMessage, type AiResult } from '../lib/ai';
 import { aiItems, createFromAi, type AiCreated } from '../lib/aiCreate';
 import { propose, type Proposal, type Step } from '../lib/assistantActions';
-import { db, type Client, type Doc, type LineItem } from '../lib/db';
+import { db, EXPENSE_CATEGORIES, type Client, type Doc, type LineItem } from '../lib/db';
+import { saveReceipt, type Place } from '../lib/aiExpense';
 import { useSettings } from '../lib/hooks';
 import { buildTodos, snoozeTodo, type Todo } from '../lib/todo';
 import { docTotals, money, todayISO } from '../lib/utils';
@@ -20,7 +21,9 @@ export function LeaAvatar({ size = 48 }: { size?: number }) {
   return <img className="lea-av" src={leaPhoto} width={size} height={size} alt="Léa" />;
 }
 
-type Msg = { me?: boolean; text: string; message?: AiMessage & { name: string; phone: string; email: string; subject: string }; edit?: { client: Client; edit: AiClientEdit; done?: boolean }; handoff?: { ask: string; result: AiResult }; prop?: Proposal; doc?: DocDraft };
+type Msg = { me?: boolean; text: string; message?: AiMessage & { name: string; phone: string; email: string; subject: string }; edit?: { client: Client; edit: AiClientEdit; done?: boolean }; handoff?: { ask: string; result: AiResult }; prop?: Proposal; doc?: DocDraft; exp?: ExpDraft };
+
+interface ExpDraft { vendor: string; date: string; total: number; category: string; shopAddress: string; from: Place; to: Place; photo?: { data: string; mimeType: string; url: string }; saved?: { summary: string; expenseId: number } }
 
 interface DocDraft { ai: AiDoc; name: string; phone: string; address: string; date: string; time: string; hasDate: boolean; items: LineItem[]; created?: AiCreated }
 const DOC_LABEL: Record<AiDoc['type'], string> = { facture: 'Facture', soumission: 'Soumission', job: 'Job à planifier', visite: 'Visite d’estimation' };
@@ -69,6 +72,12 @@ export function LeaChat() {
     const names = new Map(cl.map((c) => [c.id, c.name]));
     return jobs.filter((j) => j.status === 'planifie').sort((a, b) => (a.time || '').localeCompare(b.time || '')).map((j) => `${j.time ? `${Number(j.time.slice(0, 2))} h${j.time.slice(3) !== '00' ? ' ' + j.time.slice(3) : ''} ` : ''}${names.get(j.clientId) ?? 'Client'}${j.title ? ` — ${j.title}` : ''}`);
   }, []);
+  // Les jobs d'aujourd'hui: sert à « tu pars d'où / tu t'en vas où »
+  const dayJobs = useLiveQuery(async () => {
+    const [jobs, cl] = await Promise.all([db.jobs.where('date').equals(todayISO()).toArray(), db.clients.toArray()]);
+    const names = new Map(cl.map((c) => [c.id, c.name]));
+    return jobs.filter((j) => j.status !== 'annule').sort((a, b) => (a.time || '').localeCompare(b.time || '')).map((j) => ({ id: j.id!, label: names.get(j.clientId) ?? 'Client' }));
+  }, []) ?? [];
   const on = aiConfigured(s.aiAssistant);
   const first = (s.ownerName || '').split(' ')[0];
 
@@ -84,7 +93,7 @@ export function LeaChat() {
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [msgs, open, busy]);
   useEffect(() => { setOpen(false); hangUpRef.current(); }, [loc.pathname]);
 
-  const showResult = async (r: AiResult, ask: string): Promise<string> => {
+  const showResult = async (r: AiResult, ask: string, img?: { data: string; mimeType: string; url: string } | null): Promise<string> => {
     let spoken = r.text;
     if (r.kind === 'say') setMsgs((m) => [...m, { text: r.text }]);
     else if (r.kind === 'message') {
@@ -101,6 +110,12 @@ export function LeaChat() {
         spoken = r.text || `Je change la fiche de ${c.name}. Confirme.`;
         setMsgs((m) => [...m, { text: spoken, edit: { client: c, edit: r.edit } }]);
       }
+    } else if (r.kind === 'intent' && r.intent.kind === 'depense') {
+      const i = r.intent;
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(i.date ?? '') ? i.date! : todayISO();
+      const draft: ExpDraft = { vendor: i.vendor ?? '', date, total: i.amount ?? 0, category: i.category && (EXPENSE_CATEGORIES as readonly string[]).includes(i.category) ? i.category : 'Autre', shopAddress: '', from: { kind: 'maison' }, to: { kind: 'aucun' }, photo: img ?? undefined };
+      spoken = r.text || (img ? 'J’ai lu ton reçu. Vérifie, dis-moi d’où tu partais et où tu t’en vas, puis enregistre.' : 'Voici la dépense. Vérifie, dis-moi d’où tu partais et où tu t’en vas, puis enregistre.');
+      setMsgs((m) => [...m, { text: spoken, exp: draft }]);
     } else if (r.kind === 'intent') {
       const p = await propose(r.intent);
       spoken = p.say || r.text;
@@ -138,7 +153,7 @@ export function LeaChat() {
         });
       }
       const r = await ai.current.send(text, img ? { mimeType: img.mimeType, data: img.data } : undefined);
-      return await showResult(r, text);
+      return await showResult(r, text, img);
     } catch (e) {
       const m = aiErrorMessage(e).replace(' J’utilise l’assistant de base.', '');
       setMsgs((all) => [...all, { text: m }]);
@@ -255,6 +270,22 @@ export function LeaChat() {
     }
   };
 
+  const patchExp = (i: number, f: (d: ExpDraft) => ExpDraft) => setMsgs((all) => all.map((x, j) => (j === i && x.exp ? { ...x, exp: f(x.exp) } : x)));
+  const confirmExp = async (i: number) => {
+    const d = msgs[i]?.exp;
+    if (!d || d.saved) return;
+    if (!(d.total > 0)) return notify('Entre le montant du reçu.', 'err');
+    setBusy(true);
+    try {
+      const saved = await saveReceipt({ vendor: d.vendor, date: d.date, total: d.total, category: d.category, shopAddress: d.shopAddress, from: d.from, to: d.to, photo: d.photo });
+      patchExp(i, (x) => ({ ...x, saved }));
+    } catch (e) {
+      notify(errMsg(e), 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const runStep = async (step: Step) => {
     setBusy(true);
     try {
@@ -353,6 +384,51 @@ export function LeaChat() {
                     {m.prop.next?.map((n) => <button key={n.label} className="btn small accent" disabled={busy} onClick={() => void runStep(n)}>{n.label}</button>)}
                     {m.prop.relance && <button className="btn small accent" onClick={() => setRelanceDoc(m.prop!.relance!)}>Texto ou courriel de relance</button>}
                     {m.prop.links?.map((l) => <Link key={l.to} className="btn small" to={l.to} onClick={() => setOpen(false)}>{l.label}</Link>)}
+                  </div>
+                )}
+                {m.exp && (
+                  <div className="lea-card lea-exp">
+                    <div className="lea-doc-h"><b>Reçu / dépense</b></div>
+                    {m.exp.photo && <img className="lea-exp-photo" src={m.exp.photo.url} alt="Reçu" />}
+                    {!m.exp.saved && (
+                      <>
+                        <div className="lea-doc-row">
+                          <label className="field">Commerce<input value={m.exp.vendor} placeholder="ex.: Shell" onChange={(e) => patchExp(i, (x) => ({ ...x, vendor: e.target.value }))} /></label>
+                          <label className="field">Total ($)<input type="number" inputMode="decimal" value={m.exp.total || ''} onChange={(e) => patchExp(i, (x) => ({ ...x, total: Number(e.target.value) }))} /></label>
+                        </div>
+                        <div className="lea-doc-row">
+                          <label className="field">Date<input type="date" value={m.exp.date} onChange={(e) => patchExp(i, (x) => ({ ...x, date: e.target.value }))} /></label>
+                          <label className="field">Catégorie<select value={m.exp.category} onChange={(e) => patchExp(i, (x) => ({ ...x, category: e.target.value }))}>{EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></label>
+                        </div>
+                        <div className="lea-q">Tu pars d’où?</div>
+                        <div className="lea-chips-row">
+                          <button type="button" className={`chip-btn ${m.exp.from.kind === 'maison' ? 'on' : ''}`} onClick={() => patchExp(i, (x) => ({ ...x, from: { kind: 'maison' } }))}>Mon domicile</button>
+                          {dayJobs.map((j) => <button key={j.id} type="button" className={`chip-btn ${m.exp!.from.kind === 'job' && m.exp!.from.jobId === j.id ? 'on' : ''}`} onClick={() => patchExp(i, (x) => ({ ...x, from: { kind: 'job', jobId: j.id } }))}>Job de {j.label}</button>)}
+                          <button type="button" className={`chip-btn ${m.exp.from.kind === 'autre' ? 'on' : ''}`} onClick={() => patchExp(i, (x) => ({ ...x, from: { kind: 'autre', address: '' } }))}>Ailleurs</button>
+                          <button type="button" className={`chip-btn ${m.exp.from.kind === 'aucun' ? 'on' : ''}`} onClick={() => patchExp(i, (x) => ({ ...x, from: { kind: 'aucun' } }))}>Aucun trajet</button>
+                        </div>
+                        {m.exp.from.kind === 'autre' && <input value={m.exp.from.address} placeholder="Adresse de départ" aria-label="Adresse de départ" onChange={(e) => patchExp(i, (x) => ({ ...x, from: { kind: 'autre', address: e.target.value } }))} />}
+                        <div className="lea-q">Tu t’en vas où?</div>
+                        <div className="lea-chips-row">
+                          {dayJobs.map((j) => <button key={j.id} type="button" className={`chip-btn ${m.exp!.to.kind === 'job' && m.exp!.to.jobId === j.id ? 'on' : ''}`} onClick={() => patchExp(i, (x) => ({ ...x, to: { kind: 'job', jobId: j.id } }))}>Job de {j.label}</button>)}
+                          <button type="button" className={`chip-btn ${m.exp.to.kind === 'maison' ? 'on' : ''}`} onClick={() => patchExp(i, (x) => ({ ...x, to: { kind: 'maison' } }))}>Mon domicile</button>
+                          <button type="button" className={`chip-btn ${m.exp.to.kind === 'autre' ? 'on' : ''}`} onClick={() => patchExp(i, (x) => ({ ...x, to: { kind: 'autre', address: '' } }))}>Ailleurs</button>
+                          <button type="button" className={`chip-btn ${m.exp.to.kind === 'aucun' ? 'on' : ''}`} onClick={() => patchExp(i, (x) => ({ ...x, to: { kind: 'aucun' } }))}>Nulle part</button>
+                        </div>
+                        {m.exp.to.kind === 'autre' && <input value={m.exp.to.address} placeholder="Adresse d’arrivée" aria-label="Adresse d’arrivée" onChange={(e) => patchExp(i, (x) => ({ ...x, to: { kind: 'autre', address: e.target.value } }))} />}
+                        <label className="field">Adresse du commerce (facultatif — sinon j’utilise ta position)<input value={m.exp.shopAddress} placeholder="ex.: 1200 boul. Laurier, Beloeil" onChange={(e) => patchExp(i, (x) => ({ ...x, shopAddress: e.target.value }))} /></label>
+                        <button type="button" className="btn small accent" disabled={busy} onClick={() => void confirmExp(i)}>Enregistrer le reçu</button>
+                      </>
+                    )}
+                    {m.exp.saved && (
+                      <>
+                        <div className="small"><span className="badge green">Fait</span> {m.exp.saved.summary}</div>
+                        <div className="row" style={{ gap: 6 }}>
+                          <Link className="btn small" to={'/depenses/' + m.exp.saved.expenseId} onClick={() => setOpen(false)}>Voir le reçu</Link>
+                          <Link className="btn small" to="/km" onClick={() => setOpen(false)}>Journal de bord</Link>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
                 {m.doc && (

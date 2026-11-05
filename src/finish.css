@@ -301,3 +301,10 @@ select option:checked, select option:hover { background-color: var(--trust-2, #2
 .lea-doc-line { display: grid; grid-template-columns: 1fr 58px 78px; gap: 6px; }
 .lea-doc-line input { min-width: 0; }
 .lea-doc-total { font-size: 0.95rem; }
+
+.lea-exp { display: grid; gap: 8px; }
+.lea-exp-photo { width: 100%; max-height: 150px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); }
+.lea-exp .field { margin: 0; }
+.lea-q { font-weight: 700; font-size: 0.95rem; margin-top: 2px; }
+.lea-chips-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.lea-chips-row .chip-btn.on { background: var(--amber); border-color: var(--amber); color: var(--on-amber); font-weight: 700; }
