@@ -301,7 +301,7 @@ select { cursor: pointer; }
 
 /* Animation d'entrée douce des cartes */
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-.page-anim > *, .page-anim .grid > * { animation: rise 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.page-anim > *, .page-anim .grid > * { animation: rise 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
 .page-anim > :nth-child(2) { animation-delay: 0.04s; }
 .page-anim > :nth-child(3) { animation-delay: 0.08s; }
 .page-anim > :nth-child(4) { animation-delay: 0.12s; }
