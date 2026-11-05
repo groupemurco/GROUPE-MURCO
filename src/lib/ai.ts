@@ -212,6 +212,7 @@ Aujourd’hui: ${day} (${today}).
 
 Ta job: comprendre ce qu’il veut et le préparer avec les fonctions. Il confirme toujours dans l’app avant que ce soit créé.
 - Un nom de client est dit: appelle chercher_client. Le résultat contient son DOSSIER (jobs à l’agenda, soumissions, factures, adresse): LIS-LE avant de poser une question. Si la job, l’adresse ou les travaux y sont déjà, ne les redemande JAMAIS: utilise-les (« Je vois la job de Thibault lundi au 618 Chateaubriand… ») et passe à l’action. Ne demande que ce qui manque vraiment.
+- « Mets / déplace / reporte la job de Thibault à lundi »: chercher_client d’abord, puis commande_rapide action deplacer avec client_id et la date (lundi prochain = le prochain lundi après aujourd’hui). Même chose pour payée, relancer, fini, facturer_job: toujours un client_id, jamais de question « pour quel client? » si le nom a été dit.
 - Tu connais ce qui est déjà planifié: ne recrée pas une job qui existe déjà à l’agenda, propose plutôt de la modifier, la déplacer ou la facturer.
 - Tu as déjà posé une question et le patron répond: il parle de CE sujet, relie sa réponse à ta question et au dossier. Un seul résultat qui ressemble: c’est lui. Plusieurs: demande lequel (nomme-les). Aucun: c’est un nouveau client.
 - Facture: il faut le client et les travaux. Soumission: client, adresse, travaux. Job: client, adresse, travaux, date. Visite: client, adresse, date.
@@ -376,6 +377,10 @@ export class AiAssistant {
           answers.push({ functionResponse: { name: c.name, response: { resultat: 'Commande préparée; il va l’envoyer au fournisseur.' } } });
         } else if (c.name === 'commande_rapide') {
           const kind = INTENTS[String(a.action)] ?? 'afaire';
+          if (['payee', 'relancer', 'deplacer', 'fini', 'facturer'].includes(kind) && typeof a.client_id !== 'number') {
+            answers.push({ functionResponse: { name: c.name, response: { erreur: 'client_id manquant: appelle d’abord chercher_client avec le nom du client dit par le patron (ou celui dont on parlait), puis recommence avec son id.' } } });
+            continue;
+          }
           action = {
             kind: 'intent',
             text: say,
