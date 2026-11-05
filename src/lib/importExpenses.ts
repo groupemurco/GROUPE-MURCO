@@ -2,6 +2,7 @@
 import { db, getSettings, EXPENSE_CATEGORIES } from './db';
 import { geocode } from './geo';
 import { splitTaxes } from './receipt';
+import { syncTripForExpense } from './trips';
 
 export interface ImportRow {
   date: string; // YYYY-MM-DD
@@ -12,7 +13,7 @@ export interface ImportRow {
   note?: string;
 }
 
-export interface ImportReport { added: number; skipped: number; located: number; total: number }
+export interface ImportReport { added: number; skipped: number; located: number; trips: number; km: number; total: number }
 
 export function parseImportFile(text: string): ImportRow[] {
   const j = JSON.parse(text) as { expenses?: ImportRow[] } | ImportRow[];
@@ -25,7 +26,7 @@ export async function importExpenses(rows: ImportRow[], progress?: (done: number
   const st = await getSettings();
   const existing = await db.expenses.toArray();
   const seen = new Set(existing.map((e) => `${e.date}|${e.total.toFixed(2)}|${e.vendor.trim().toLowerCase()}`));
-  const rep: ImportReport = { added: 0, skipped: 0, located: 0, total: rows.length };
+  const rep: ImportReport = { added: 0, skipped: 0, located: 0, trips: 0, km: 0, total: rows.length };
   let n = 0;
   for (const r of rows) {
     n++;
@@ -49,12 +50,20 @@ export async function importExpenses(rows: ImportRow[], progress?: (done: number
         rep.located++;
       }
     }
-    await db.expenses.add({
+    const id = await db.expenses.add({
       date: r.date, vendor, category, ...splitTaxes(total, st.tpsRate, st.tvqRate), total, paymentMethod: 'Carte',
       notes: r.note ?? 'Importé du relevé de carte — reçu à ajouter', locationLabel: label, geo, geoSource: geo ? 'adresse' : undefined,
       createdAt: new Date().toISOString(),
     });
     rep.added++;
+    // Trajet du domicile jusqu'au commerce (essence): au journal de bord, aller-retour selon les paramètres
+    if (geo && category === 'Essence') {
+      const t = await syncTripForExpense(id, st.autoTripRoundTrip).catch(() => null);
+      if (t) {
+        rep.trips++;
+        rep.km += t.totalKm;
+      }
+    }
   }
   return rep;
 }

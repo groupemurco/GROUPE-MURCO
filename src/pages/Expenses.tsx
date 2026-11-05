@@ -28,7 +28,7 @@ export default function Expenses() {
       const rows = parseImportFile(await f.text());
       if (!rows.length) return notify('Aucune dépense lisible dans ce fichier.', 'err');
       const r = await importExpenses(rows, (d, of) => setImporting(`Import… ${d}/${of}`));
-      notify(`${r.added} dépense(s) ajoutée(s), ${r.located} avec adresse trouvée${r.skipped ? `, ${r.skipped} déjà là (ignorée${r.skipped > 1 ? 's' : ''})` : ''}.`);
+      notify(`${r.added} dépense(s) ajoutée(s), ${r.located} avec adresse trouvée${r.trips ? `, ${r.trips} trajet(s) au journal de bord (${Math.round(r.km)} km)` : ''}${r.skipped ? `, ${r.skipped} déjà là (ignorée${r.skipped > 1 ? 's' : ''})` : ''}.`);
       setMonth('');
     } catch (e) {
       notify(errMsg(e), 'err');
