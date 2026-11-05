@@ -273,3 +273,14 @@ select option:checked, select option:hover { background-color: var(--trust-2, #2
 :root { color-scheme: light dark; }
 :root[data-theme="dark"] { color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
+
+/* Barre du haut: aucune bande, aucune ligne — elle se fond dans le décor (flou seulement) */
+@media (max-width: 860px) {
+  .topbar {
+    background: color-mix(in srgb, var(--bg) 35%, transparent);
+    -webkit-backdrop-filter: blur(22px) saturate(1.2);
+    backdrop-filter: blur(22px) saturate(1.2);
+    border-bottom: 0;
+    box-shadow: none;
+  }
+}
