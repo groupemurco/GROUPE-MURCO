@@ -3,7 +3,7 @@
 // passent par les mêmes fonctions que l'assistant écrit et sont toujours confirmées à l'écran.
 import { getAI, getLiveGenerativeModel, ResponseModality, startAudioConversation, VertexAIBackend, type AudioConversationController, type FunctionCall, type FunctionResponse } from 'firebase/ai';
 import type { Intent, IntentKind } from './assistant';
-import { findClients, systemPrompt, toClientEdit, toMessage, TOOLS, type AiClient, type AiDoc, type AiResult, type AiService } from './ai';
+import { lookupClients, systemPrompt, toClientEdit, toMessage, TOOLS, type AiClient, type AiDoc, type AiResult, type AiService } from './ai';
 import { firebaseApp } from './sync';
 
 const LIVE_MODELS = ['gemini-live-2.5-flash'];
@@ -108,7 +108,7 @@ export async function startLive(cfg: LiveConfig): Promise<LiveHandle> {
           const c = calls[0];
           const a = (c.args ?? {}) as Record<string, unknown>;
           if (c.name === 'chercher_client') {
-            const found = findClients(String(a.nom ?? ''), cfg.clients()).map((x) => ({ id: x.id, nom: x.name, adresse: x.address || '', telephone: x.phone || '' }));
+            const found = await lookupClients(String(a.nom ?? ''), cfg.clients());
             return { name: c.name, response: { clients: found } };
           }
           const res = toResult(c.name, a);

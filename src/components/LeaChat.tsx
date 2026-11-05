@@ -184,7 +184,7 @@ export function LeaChat() {
         setHeard(t);
         if (timer) clearTimeout(timer);
         // On considère la phrase finie après une petite pause de silence
-        if (t) timer = setTimeout(() => listenRef.current?.stop(), fin ? 1300 : 2400);
+        if (t) timer = setTimeout(() => listenRef.current?.stop(), fin ? 650 : 1300);
       },
       (err, text) => {
         if (timer) clearTimeout(timer);

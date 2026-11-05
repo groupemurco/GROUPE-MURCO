@@ -5,7 +5,9 @@ import { getAI, getGenerativeModel, VertexAIBackend, Schema, type ChatSession, t
 import type { Intent, IntentKind } from './assistant';
 import { devisFromJson, type Devis, type DevisDraft, type PriceRef } from './devis';
 import { findClients } from './fuzzy';
+import { db } from './db';
 import { firebaseApp, getFirebaseConfig } from './sync';
+import { docTotals } from './utils';
 
 export { findClients };
 
@@ -75,6 +77,27 @@ export function toMessage(a: Record<string, unknown>): AiMessage | null {
   if (!text || !Number.isFinite(clientId)) return null;
   const channel = a.canal === 'courriel' ? 'courriel' : a.canal === 'texto' ? 'texto' : undefined;
   return { clientId, text, channel, subject: typeof a.sujet === 'string' && a.sujet.trim() ? a.sujet.trim() : undefined };
+}
+
+const STATUT_JOB: Record<string, string> = { planifie: 'planifiée', fait: 'faite (à facturer)', facture: 'facturée', annule: 'annulée' };
+const STATUT_DOC: Record<string, string> = { draft: 'brouillon', sent: 'envoyée', paid: 'payée', partial: 'paiement partiel', accepted: 'acceptée', refused: 'refusée', cancelled: 'annulée' };
+
+/** Ce que l'app sait déjà d'un client: ses jobs à l'agenda, ses soumissions et ses factures. */
+export async function clientDossier(clientId: number) {
+  try {
+    const [jobs, docs] = await Promise.all([db.jobs.where('clientId').equals(clientId).toArray(), db.docs.where('clientId').equals(clientId).toArray()]);
+    return {
+      jobs_agenda: jobs.filter((j) => j.status !== 'annule').sort((x, y) => y.date.localeCompare(x.date)).slice(0, 8).map((j) => ({ date: j.date, heure: j.time || undefined, titre: j.title || undefined, statut: STATUT_JOB[j.status] ?? j.status, adresse: j.address || undefined, travaux: j.items.map((i) => i.description).filter(Boolean).slice(0, 5) })),
+      documents: docs.sort((x, y) => y.date.localeCompare(x.date)).slice(0, 8).map((d) => { const t = docTotals(d, { tpsRate: 5, tvqRate: 9.975 }); return { type: d.type === 'invoice' ? 'facture' : 'soumission', numero: d.number, date: d.date, titre: d.title || undefined, statut: STATUT_DOC[d.status] ?? d.status, total: t.total, solde: t.balance }; }),
+    };
+  } catch {
+    return {};
+  }
+}
+
+/** Réponse de chercher_client: les clients qui ressemblent + leur dossier (pour ne pas redemander ce qui est déjà inscrit). */
+export async function lookupClients(nom: string, all: AiClient[]) {
+  return Promise.all(findClients(nom, all).slice(0, 4).map(async (x) => ({ id: x.id, nom: x.name, adresse: x.address || '', telephone: x.phone || '', ...(x.id ? await clientDossier(x.id) : {}) })));
 }
 
 export const TOOLS: FunctionDeclaration[] = [
@@ -188,7 +211,9 @@ export function systemPrompt(company: string, services: AiService[], today: stri
 Aujourd’hui: ${day} (${today}).
 
 Ta job: comprendre ce qu’il veut et le préparer avec les fonctions. Il confirme toujours dans l’app avant que ce soit créé.
-- Un nom de client est dit: appelle chercher_client. Un seul résultat qui ressemble: c’est lui. Plusieurs: demande lequel (nomme-les). Aucun: c’est un nouveau client.
+- Un nom de client est dit: appelle chercher_client. Le résultat contient son DOSSIER (jobs à l’agenda, soumissions, factures, adresse): LIS-LE avant de poser une question. Si la job, l’adresse ou les travaux y sont déjà, ne les redemande JAMAIS: utilise-les (« Je vois la job de Thibault lundi au 618 Chateaubriand… ») et passe à l’action. Ne demande que ce qui manque vraiment.
+- Tu connais ce qui est déjà planifié: ne recrée pas une job qui existe déjà à l’agenda, propose plutôt de la modifier, la déplacer ou la facturer.
+- Tu as déjà posé une question et le patron répond: il parle de CE sujet, relie sa réponse à ta question et au dossier. Un seul résultat qui ressemble: c’est lui. Plusieurs: demande lequel (nomme-les). Aucun: c’est un nouveau client.
 - Facture: il faut le client et les travaux. Soumission: client, adresse, travaux. Job: client, adresse, travaux, date. Visite: client, adresse, date.
 - Pose UNE seule question courte à la fois pour ce qui manque. Pas besoin de l’heure ni du téléphone s’il ne les dit pas.
 - Travaux: utilise les codes de la liste de prix. Quantités en nombres (pieds, fenêtres, heures…). N’invente jamais de prix.
@@ -301,7 +326,7 @@ export class AiAssistant {
       for (const c of calls) {
         const a = (c.args ?? {}) as Record<string, unknown>;
         if (c.name === 'chercher_client') {
-          const found = findClients(String(a.nom ?? ''), this.ctx.clients()).map((x) => ({ id: x.id, nom: x.name, adresse: x.address || '', telephone: x.phone || '' }));
+          const found = await lookupClients(String(a.nom ?? ''), this.ctx.clients());
           answers.push({ functionResponse: { name: c.name, response: { clients: found } } });
         } else if (c.name === 'preparer_document') {
           const lignes = Array.isArray(a.lignes) ? (a.lignes as Record<string, unknown>[]) : [];
