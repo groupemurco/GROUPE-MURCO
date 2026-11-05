@@ -1,7 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { errMsg, useToast } from '../components/Toast';
 import { db, EXPENSE_CATEGORIES, type Expense } from '../lib/db';
+import { importExpenses, parseImportFile } from '../lib/importExpenses';
 import { km, money, todayISO } from '../lib/utils';
 
 function Thumb({ e }: { e: Expense }) {
@@ -18,6 +20,22 @@ function Thumb({ e }: { e: Expense }) {
 
 export default function Expenses() {
   const nav = useNavigate();
+  const notify = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState('');
+  const doImport = async (f: File) => {
+    try {
+      const rows = parseImportFile(await f.text());
+      if (!rows.length) return notify('Aucune dépense lisible dans ce fichier.', 'err');
+      const r = await importExpenses(rows, (d, of) => setImporting(`Import… ${d}/${of}`));
+      notify(`${r.added} dépense(s) ajoutée(s), ${r.located} avec adresse trouvée${r.skipped ? `, ${r.skipped} déjà là (ignorée${r.skipped > 1 ? 's' : ''})` : ''}.`);
+      setMonth('');
+    } catch (e) {
+      notify(errMsg(e), 'err');
+    } finally {
+      setImporting('');
+    }
+  };
   const [month, setMonth] = useState(todayISO().slice(0, 7));
   const [cat, setCat] = useState('');
   const all = useLiveQuery(() => db.expenses.orderBy('date').reverse().toArray(), []) ?? [];
@@ -28,7 +46,11 @@ export default function Expenses() {
     <>
       <div className="page-head">
         <h1>Reçus et dépenses</h1>
-        <button className="btn accent" onClick={() => nav('/depenses/new')}>Ajouter un reçu</button>
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn" disabled={!!importing} onClick={() => fileRef.current?.click()}>{importing || 'Importer une liste'}</button>
+          <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void doImport(f); }} />
+          <button className="btn accent" onClick={() => nav('/depenses/new')}>Ajouter un reçu</button>
+        </div>
       </div>
       <div className="card">
         <div className="row" style={{ marginBottom: 12 }}>
