@@ -3,12 +3,13 @@ import { Camera, Mic, PhoneOff, Send, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { jobToInvoice, smsLink } from '../lib/agenda';
-import { AiAssistant, aiConfigured, aiErrorMessage, type AiClientEdit, type AiMessage, type AiResult } from '../lib/ai';
+import { AiAssistant, aiConfigured, aiErrorMessage, type AiClientEdit, type AiDoc, type AiMessage, type AiResult } from '../lib/ai';
+import { aiItems, createFromAi, type AiCreated } from '../lib/aiCreate';
 import { propose, type Proposal, type Step } from '../lib/assistantActions';
-import { db, type Client, type Doc } from '../lib/db';
+import { db, type Client, type Doc, type LineItem } from '../lib/db';
 import { useSettings } from '../lib/hooks';
 import { buildTodos, snoozeTodo, type Todo } from '../lib/todo';
-import { todayISO } from '../lib/utils';
+import { docTotals, money, todayISO } from '../lib/utils';
 import leaPhoto from '../assets/lea.png';
 import { listen, speechSupported, type Listening } from '../lib/speech';
 import { RelanceModal } from './RelanceModal';
@@ -19,7 +20,10 @@ export function LeaAvatar({ size = 48 }: { size?: number }) {
   return <img className="lea-av" src={leaPhoto} width={size} height={size} alt="Léa" />;
 }
 
-type Msg = { me?: boolean; text: string; message?: AiMessage & { name: string; phone: string; email: string; subject: string }; edit?: { client: Client; edit: AiClientEdit; done?: boolean }; handoff?: { ask: string; result: AiResult }; prop?: Proposal };
+type Msg = { me?: boolean; text: string; message?: AiMessage & { name: string; phone: string; email: string; subject: string }; edit?: { client: Client; edit: AiClientEdit; done?: boolean }; handoff?: { ask: string; result: AiResult }; prop?: Proposal; doc?: DocDraft };
+
+interface DocDraft { ai: AiDoc; name: string; phone: string; address: string; date: string; time: string; hasDate: boolean; items: LineItem[]; created?: AiCreated }
+const DOC_LABEL: Record<AiDoc['type'], string> = { facture: 'Facture', soumission: 'Soumission', job: 'Job à planifier', visite: 'Visite d’estimation' };
 
 const QUICK = [
   { label: 'Relancer les impayés', ask: 'Relance mes factures en retard' },
@@ -101,6 +105,12 @@ export function LeaChat() {
       const p = await propose(r.intent);
       spoken = p.say || r.text;
       setMsgs((m) => [...m, { text: spoken, prop: p }]);
+    } else if (r.kind === 'doc') {
+      const a = r.doc;
+      const c = a.clientId ? clientsRef.current.find((x) => x.id === a.clientId) : undefined;
+      const draft: DocDraft = { ai: a, name: c?.name ?? a.name ?? '', phone: a.phone ?? c?.phone ?? '', address: a.address ?? c?.address ?? '', date: a.date ?? todayISO(), time: a.time ?? '', hasDate: !!a.date, items: aiItems(a, services, c?.lang ?? 'fr') };
+      spoken = r.text || (a.type === 'facture' ? 'Voici la facture. Corrige ce que tu veux, puis confirme.' : a.type === 'soumission' ? 'Voici la soumission. Corrige ce que tu veux, puis confirme.' : 'Voici ce que je planifie. Corrige ce que tu veux, puis confirme.');
+      setMsgs((m) => [...m, { text: spoken, doc: draft }]);
     } else {
       spoken = r.text || 'C’est prêt. Je te l’ouvre pour que tu confirmes.';
       setMsgs((m) => [...m, { text: spoken, handoff: { ask, result: r } }]);
@@ -230,6 +240,21 @@ export function LeaChat() {
     }
   };
 
+  const patchDoc = (i: number, f: (d: DocDraft) => DocDraft) => setMsgs((all) => all.map((x, j) => (j === i && x.doc ? { ...x, doc: f(x.doc) } : x)));
+  const confirmDoc = async (i: number) => {
+    const d = msgs[i]?.doc;
+    if (!d || d.created) return;
+    setBusy(true);
+    try {
+      const created = await createFromAi({ type: d.ai.type, clientId: d.ai.clientId, name: d.name, phone: d.phone, address: d.address, date: d.date, time: d.time, hasDate: d.hasDate, items: d.items });
+      patchDoc(i, (x) => ({ ...x, created }));
+    } catch (e) {
+      notify(errMsg(e), 'err');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const runStep = async (step: Step) => {
     setBusy(true);
     try {
@@ -328,6 +353,43 @@ export function LeaChat() {
                     {m.prop.next?.map((n) => <button key={n.label} className="btn small accent" disabled={busy} onClick={() => void runStep(n)}>{n.label}</button>)}
                     {m.prop.relance && <button className="btn small accent" onClick={() => setRelanceDoc(m.prop!.relance!)}>Texto ou courriel de relance</button>}
                     {m.prop.links?.map((l) => <Link key={l.to} className="btn small" to={l.to} onClick={() => setOpen(false)}>{l.label}</Link>)}
+                  </div>
+                )}
+                {m.doc && (
+                  <div className="lea-card lea-doc">
+                    <div className="lea-doc-h"><b>{DOC_LABEL[m.doc.ai.type]}</b><span>{m.doc.name || 'Client à choisir'}{!m.doc.ai.clientId && m.doc.name ? ' (nouveau)' : ''}</span></div>
+                    {!m.doc.created && (
+                      <>
+                        {(m.doc.ai.type !== 'facture' && (m.doc.ai.type !== 'soumission' || m.doc.hasDate)) && (
+                          <div className="lea-doc-row">
+                            <label className="field">Date<input type="date" value={m.doc.date} onChange={(e) => patchDoc(i, (x) => ({ ...x, date: e.target.value, hasDate: true }))} /></label>
+                            <label className="field">Heure<input type="time" value={m.doc.time} onChange={(e) => patchDoc(i, (x) => ({ ...x, time: e.target.value }))} /></label>
+                          </div>
+                        )}
+                        {m.doc.ai.type === 'soumission' && !m.doc.hasDate && <button type="button" className="btn small" onClick={() => patchDoc(i, (x) => ({ ...x, hasDate: true }))}>+ Planifier la job aussi</button>}
+                        <label className="field">Adresse<input value={m.doc.address} onChange={(e) => patchDoc(i, (x) => ({ ...x, address: e.target.value }))} /></label>
+                        {m.doc.ai.type !== 'visite' && m.doc.items.map((it, k) => (
+                          <div key={k} className="lea-doc-line">
+                            <input className="ld-desc" value={it.description} aria-label="Travaux" onChange={(e) => patchDoc(i, (x) => ({ ...x, items: x.items.map((y, n) => (n === k ? { ...y, description: e.target.value } : y)) }))} />
+                            <input className="ld-qty" type="number" inputMode="decimal" value={it.quantity} aria-label="Quantité" onChange={(e) => patchDoc(i, (x) => ({ ...x, items: x.items.map((y, n) => (n === k ? { ...y, quantity: Number(e.target.value) } : y)) }))} />
+                            <input className="ld-price" type="number" inputMode="decimal" value={it.unitPrice || ''} placeholder="Prix $" aria-label="Prix" onChange={(e) => patchDoc(i, (x) => ({ ...x, items: x.items.map((y, n) => (n === k ? { ...y, unitPrice: Number(e.target.value) } : y)) }))} />
+                          </div>
+                        ))}
+                        {m.doc.ai.type !== 'visite' && <button type="button" className="btn small" onClick={() => patchDoc(i, (x) => ({ ...x, items: [...x.items, { code: '', description: '', quantity: 1, unitPrice: 0 }] }))}>+ Ajouter une ligne</button>}
+                        {m.doc.ai.type !== 'visite' && m.doc.items.some((it) => it.unitPrice) && <div className="lea-doc-total">Total avec taxes: <b>{money(docTotals({ items: m.doc.items, applyTps: s.chargeTaxes, applyTvq: s.chargeTaxes, payments: [] }, s).total)}</b></div>}
+                        <button type="button" className="btn small accent" disabled={busy} onClick={() => void confirmDoc(i)}>{m.doc.ai.type === 'facture' ? 'Créer la facture' : m.doc.ai.type === 'soumission' ? (m.doc.hasDate ? 'Créer la soumission et planifier' : 'Créer la soumission') : m.doc.ai.type === 'visite' ? 'Planifier la visite' : 'Planifier la job'}</button>
+                      </>
+                    )}
+                    {m.doc.created && (
+                      <>
+                        <div className="small"><span className="badge green">Fait</span> {m.doc.created.summary}</div>
+                        <div className="row" style={{ gap: 6 }}>
+                          {m.doc.created.invoiceId && <Link className="btn small accent" to={'/doc/' + m.doc.created.invoiceId} onClick={() => setOpen(false)}>Ouvrir la facture</Link>}
+                          {m.doc.created.quoteId && <Link className="btn small accent" to={'/doc/' + m.doc.created.quoteId} onClick={() => setOpen(false)}>Ouvrir la soumission</Link>}
+                          {m.doc.created.jobId && <Link className="btn small" to={'/job/' + m.doc.created.jobId} onClick={() => setOpen(false)}>Voir la job</Link>}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
                 {m.handoff && (

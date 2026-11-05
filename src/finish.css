@@ -291,3 +291,13 @@ select option:checked, select option:hover { background-color: var(--trust-2, #2
   .topbar { position: static; min-height: 0; padding: 0 0 2px; margin: 0 0 10px; background: none; -webkit-backdrop-filter: none; backdrop-filter: none; border: 0; }
   .topbar .tb-title { font-size: 1.15rem; }
 }
+
+/* Carte de confirmation de Léa (facture, soumission, job): tout se fait dans sa fenêtre */
+.lea-doc { display: grid; gap: 8px; }
+.lea-doc-h { display: grid; gap: 2px; }
+.lea-doc-h span { color: var(--muted); font-size: 0.9rem; }
+.lea-doc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lea-doc .field { margin: 0; }
+.lea-doc-line { display: grid; grid-template-columns: 1fr 58px 78px; gap: 6px; }
+.lea-doc-line input { min-width: 0; }
+.lea-doc-total { font-size: 0.95rem; }
