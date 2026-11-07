@@ -8,6 +8,7 @@ import { useSettings } from '../lib/hooks';
 import { companyTexts, moneyFor } from '../lib/docLang';
 import { publishPortal } from '../lib/portal';
 import { docTotals, km, money } from '../lib/utils';
+import { EstimateFollowUp } from './EstimateFollowUp';
 import { Modal } from './Modal';
 import { errMsg, useToast } from './Toast';
 
@@ -20,6 +21,7 @@ export function JobDoneSheet({ job, client, canBill, routeKm, onClose }: { job: 
   const s = useSettings();
   const notify = useToast();
   const [busy, setBusy] = useState('');
+  if (job.type === 'estimation') return <EstimateFollowUp job={job} client={client} onClose={onClose} />;
 
   const textInvoice = async () => {
     if (!client?.phone) return;

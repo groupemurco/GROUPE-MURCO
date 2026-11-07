@@ -765,6 +765,7 @@ function DayView({ ctx, date, jobs, trips, busy, run, s, onRemind, onPostpone, i
                         ) : (
                           <button className="btn small" disabled={!!busy} onClick={() => invoice(j)}><FileText size={15} /> Facturer</button>
                         ))}
+                        {ctx.canEdit && <div className="row full" style={{ gap: 6, width: '100%', flexWrap: 'wrap' }}><span className="small muted">Type:</span>{ctx.prefs.types.map((t) => <button key={t.key} type="button" className={`chip-btn ${j.type === t.key ? 'on' : ''}`} onClick={() => void db.jobs.update(j.id!, { type: j.type === t.key ? undefined : t.key })}>{t.label}</button>)}</div>}
                         {ctx.canEdit && j.status === 'planifie' && <button className="btn small" onClick={() => onRemind(j)}><Bell size={15} /> Rappel</button>}
                         {ctx.canEdit && j.status === 'planifie' && <button className="btn small" onClick={() => onPostpone([j], c?.name ?? 'ce job')}><CalendarClock size={15} /> Déplacer</button>}
                         {ctx.canEdit && (

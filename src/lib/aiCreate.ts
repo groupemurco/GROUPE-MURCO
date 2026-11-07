@@ -2,7 +2,7 @@
 import type { AiDoc } from './ai';
 import { blankJob } from './agenda';
 import { findClients } from './fuzzy';
-import { db, getSettings, takeNextNumber, type Doc, type LineItem, type Service } from './db';
+import { db, getSettings, takeNextNumber, type Doc, type Job, type LineItem, type Service } from './db';
 import { isDevisEmpty } from './devis';
 import { devisPriceItems, draftPrice, jobTitle, runDevisAi, styleDevis } from './devisFlow';
 import { addDays, docTotals, lineAmount, todayISO } from './utils';
@@ -32,6 +32,7 @@ export interface AiCreateInput {
   ask?: string; // la demande du patron (sert à rédiger le devis détaillé)
   detailed?: boolean; // devis détaillé (texte complet des travaux, conditions) au lieu de lignes de prix
   tax?: { applyTps: boolean; applyTvq: boolean; taxIncluded: boolean };
+  newJob?: boolean; // planifier une nouvelle job même si le client en a déjà une de planifiée
 }
 export interface AiCreated {
   jobId?: number;
@@ -43,6 +44,14 @@ export interface AiCreated {
 }
 
 const fmtDate = (d: string, t: string) => `${new Date(d + 'T12:00:00').toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long' })}${t ? ` à ${Number(t.slice(0, 2))} h${t.slice(3) !== '00' ? ` ${t.slice(3)}` : ''}` : ''}`;
+
+/** La job déjà planifiée de ce client (la prochaine à venir, sans compter les estimations): on s'en sert au lieu d'en créer une autre. */
+export async function plannedJobOf(clientId: number): Promise<Job | undefined> {
+  const today = todayISO();
+  return (await db.jobs.where('clientId').equals(clientId).toArray())
+    .filter((j) => j.status === 'planifie' && j.type !== 'estimation' && j.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+}
 
 export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
   const st = await getSettings();
@@ -94,6 +103,23 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
     return { quoteId: q.id, number: q.number, total, summary: `${i.detailed ? 'Devis détaillé' : 'Soumission'} ${q.number} créé${i.detailed ? '' : 'e'}.` };
   }
   const visit = i.type === 'visite';
+  const ej = visit || i.newJob ? undefined : await plannedJobOf(clientId);
+  if (ej) {
+    const patch: Partial<Job> = {};
+    if (!ej.items.length && items.length) patch.items = items;
+    if (!ej.title && title) patch.title = title;
+    if (!ej.address && address) patch.address = address;
+    if (i.type === 'job' && i.hasDate) {
+      patch.date = i.date;
+      if (i.time) patch.time = i.time;
+    }
+    if (Object.keys(patch).length) await db.jobs.update(ej.id!, patch);
+    const date = patch.date ?? ej.date;
+    const hasQuote = (await db.docs.where('clientId').equals(clientId).toArray()).some((d) => d.type === 'quote' && d.jobId === ej.id);
+    let q: { id: number; number: string } | undefined;
+    if (i.type === 'soumission' || (!hasQuote && items.length)) q = await makeQuote(date, ej.id);
+    return { jobId: ej.id, quoteId: q?.id, number: q?.number, total, summary: `Job déjà planifiée le ${fmtDate(date, patch.time ?? ej.time)}: ${q ? `${i.detailed ? 'devis détaillé' : 'soumission'} ${q.number} créé${i.detailed ? '' : 'e'} et lié${i.detailed ? '' : 'e'} à cette job` : 'rien de nouveau à créer'}.` };
+  }
   const jobId = await db.jobs.add({
     ...blankJob(i.date, clientId), time: i.time, durationMin: visit ? 60 : 120, address,
     title: visit ? `Visite d’estimation${work ? ` — ${work}` : ''}` : title, items: visit ? [] : items, type: visit ? 'estimation' : undefined,

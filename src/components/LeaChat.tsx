@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { jobToInvoice, smsLink } from '../lib/agenda';
 import { AiAssistant, aiConfigured, aiErrorMessage, type AiClientEdit, type AiDoc, type AiMessage, type AiResult } from '../lib/ai';
-import { aiItems, createFromAi, type AiCreated } from '../lib/aiCreate';
+import { aiItems, createFromAi, plannedJobOf, type AiCreated } from '../lib/aiCreate';
 import { propose, type Proposal, type Step } from '../lib/assistantActions';
 import { db, EXPENSE_CATEGORIES, type Client, type Doc, type LineItem } from '../lib/db';
 import { saveReceipt, type Place } from '../lib/aiExpense';
@@ -27,7 +27,7 @@ type Msg = { me?: boolean; text: string; message?: AiMessage & { name: string; p
 
 interface ExpDraft { vendor: string; date: string; total: number; category: string; shopAddress: string; from: Place; to: Place; photo?: { data: string; mimeType: string; url: string }; saved?: { summary: string; expenseId: number } }
 
-interface DocDraft { ai: AiDoc; ask: string; detailed: boolean; tax: { applyTps: boolean; applyTvq: boolean; taxIncluded: boolean }; clientId?: number; name: string; phone: string; address: string; date: string; time: string; hasDate: boolean; items: LineItem[]; created?: AiCreated }
+interface DocDraft { ai: AiDoc; existing?: { date: string; title: string }; newJob?: boolean; ask: string; detailed: boolean; tax: { applyTps: boolean; applyTvq: boolean; taxIncluded: boolean }; clientId?: number; name: string; phone: string; address: string; date: string; time: string; hasDate: boolean; items: LineItem[]; created?: AiCreated }
 const DOC_LABEL: Record<AiDoc['type'], string> = { facture: 'Facture', soumission: 'Soumission', job: 'Job à planifier', visite: 'Visite d’estimation' };
 
 const QUICK = [
@@ -126,6 +126,10 @@ export function LeaChat() {
       const a = r.doc;
       const c = a.clientId ? clientsRef.current.find((x) => x.id === a.clientId) : undefined;
       const draft: DocDraft = { ai: a, ask, detailed: !!a.detailed, tax: { applyTps: !!s.chargeTaxes, applyTvq: !!s.chargeTaxes, taxIncluded: false }, clientId: c?.id, name: c?.name ?? a.name ?? '', phone: a.phone ?? c?.phone ?? '', address: a.address ?? c?.address ?? '', date: a.date ?? todayISO(), time: a.time ?? '', hasDate: !!a.date, items: aiItems(a, services, c?.lang ?? 'fr') };
+      if (c?.id && (a.type === 'soumission' || a.type === 'job')) {
+        const ej = await plannedJobOf(c.id);
+        if (ej) draft.existing = { date: ej.date, title: ej.title };
+      }
       spoken = r.text || (a.type === 'facture' ? 'Voici la facture. Corrige ce que tu veux, puis confirme.' : a.type === 'soumission' ? 'Voici la soumission. Corrige ce que tu veux, puis confirme.' : 'Voici ce que je planifie. Corrige ce que tu veux, puis confirme.');
       setMsgs((m) => [...m, { text: spoken, doc: draft }]);
     } else {
@@ -263,7 +267,7 @@ export function LeaChat() {
     if (!d || d.created) return;
     setBusy(true);
     try {
-      const created = await createFromAi({ type: d.ai.type, clientId: d.clientId, name: d.name, phone: d.phone, address: d.address, date: d.date, time: d.time, hasDate: d.hasDate, items: d.items, ask: d.ask, detailed: d.detailed, tax: d.tax });
+      const created = await createFromAi({ type: d.ai.type, clientId: d.clientId, name: d.name, phone: d.phone, address: d.address, date: d.date, time: d.time, hasDate: d.hasDate, items: d.items, ask: d.ask, detailed: d.detailed, tax: d.tax, newJob: d.newJob });
       patchDoc(i, (x) => ({ ...x, created }));
     } catch (e) {
       notify(errMsg(e), 'err');
@@ -446,6 +450,8 @@ export function LeaChat() {
                             <label className="field">Heure<input type="time" value={m.doc.time} onChange={(e) => patchDoc(i, (x) => ({ ...x, time: e.target.value }))} /></label>
                           </div>
                         )}
+                        {m.doc.existing && !m.doc.newJob && <div className="notice info small">Ce client a déjà une job planifiée le {m.doc.existing.date}{m.doc.existing.title ? ` (${m.doc.existing.title.slice(0, 50)})` : ''}: je prépare la soumission de <b>cette job</b>, sans en créer une autre.</div>}
+                        {m.doc.existing && <label className="check"><input type="checkbox" checked={!!m.doc.newJob} onChange={(e) => patchDoc(i, (x) => ({ ...x, newJob: e.target.checked }))} /> Planifier une nouvelle job quand même</label>}
                         {(m.doc.ai.type === 'soumission' || m.doc.ai.type === 'job') && <label className="check"><input type="checkbox" checked={m.doc.detailed} onChange={(e) => patchDoc(i, (x) => ({ ...x, detailed: e.target.checked }))} /> Devis détaillé (texte complet des travaux et conditions)</label>}
                         {m.doc.ai.type !== 'visite' && <TaxMode doc={m.doc.tax} onChange={(t) => patchDoc(i, (x) => ({ ...x, tax: { applyTps: t.applyTps, applyTvq: t.applyTvq, taxIncluded: !!t.taxIncluded } }))} />}
                         {m.doc.ai.type === 'soumission' && !m.doc.hasDate && <button type="button" className="btn small" onClick={() => patchDoc(i, (x) => ({ ...x, hasDate: true }))}>+ Planifier la job aussi</button>}
