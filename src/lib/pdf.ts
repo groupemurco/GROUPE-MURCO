@@ -298,7 +298,7 @@ export function buildDocPdf(doc: Doc, client: Client | undefined, s: Settings, p
     [T.date, fd(doc.date)],
     [isInvoice ? T.due : T.validUntil, isInvoice && (!doc.dueDate || doc.dueDate <= doc.date) ? T.onReceipt : fd(doc.dueDate)],
   ];
-  if (doc.jobDate) meta.push([T.jobDate, fd(doc.jobDate)]);
+  if (doc.jobDate) meta.push([T.jobDate, `${fd(doc.jobDate)}${doc.jobTime ? (L === 'en' ? `, around ${doc.jobTime}` : `, vers ${Number(doc.jobTime.slice(0, 2))} h${doc.jobTime.slice(3) !== '00' ? ` ${doc.jobTime.slice(3)}` : ''}`) : ''}`]);
   const clientLines = [client?.name, client?.contact, client?.address, client?.phone, client?.email].filter(Boolean) as string[];
   pdf.setFontSize(9.5);
   const wrappedClient = clientLines.map((l, i) => {

@@ -42,7 +42,7 @@ export function EstimateFollowUp({ job, client, onClose }: { job: Job; client?: 
         let jobId: number | undefined;
         if (date) {
           jobId = await db.jobs.add({ ...blankJob(date, job.clientId), time, address, title: existing.title || what, items: existing.items });
-          await db.docs.update(existing.id!, { jobId, jobDate: date });
+          await db.docs.update(existing.id!, { jobId, jobDate: date, jobTime: time || undefined });
         }
         setRes({ quoteId: existing.id, jobId, number: existing.number, total: docTotals(existing, s).total, summary: `Soumission ${existing.number} gardée${date ? `, travaux planifiés le ${formatDate(date)}` : ''}.` });
       } else {

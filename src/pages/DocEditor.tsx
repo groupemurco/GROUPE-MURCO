@@ -442,6 +442,12 @@ export default function DocEditor() {
           <label className="field full">Description de la job (sert aussi de raison dans le journal de bord)
             <input value={doc.title} placeholder="ex.: Installation de céramique salle de bain" onChange={(e) => upd({ title: e.target.value })} />
           </label>
+          {!isInvoice && (
+            <>
+              <label className="field">Date des travaux prévue (si elle est connue)<input type="date" value={doc.jobDate} onChange={(e) => upd({ jobDate: e.target.value })} /></label>
+              <label className="field">Heure prévue<input type="time" value={doc.jobTime ?? ''} onChange={(e) => upd({ jobTime: e.target.value })} /></label>
+            </>
+          )}
           <label className="field full">
             Lieu des travaux
             <div className="row" style={{ flexWrap: 'nowrap' }}>

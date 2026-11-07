@@ -183,6 +183,7 @@ export interface Doc extends Synced {
   date: string; // YYYY-MM-DD
   dueDate: string;
   jobDate: string;
+  jobTime?: string; // heure prévue des travaux (HH:MM), affichée sur la soumission
   lang?: 'fr' | 'en'; // langue du document (sinon celle du client)
   jobAddress: string;
   jobGeo?: GeoPoint;

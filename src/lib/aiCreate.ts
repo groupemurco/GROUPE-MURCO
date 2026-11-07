@@ -74,7 +74,7 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
   const address = i.address.trim();
 
   // Soumission: en lignes de prix, ou en devis détaillé rédigé par l'assistant (comme dans l'éditeur)
-  const makeQuote = async (jobDate: string, jobId?: number): Promise<{ id: number; number: string }> => {
+  const makeQuote = async (jobDate: string, jobId?: number, jobTime?: string): Promise<{ id: number; number: string }> => {
     const date = todayISO();
     const number = await takeNextNumber('quote');
     let base: Partial<Doc> = { title, items };
@@ -86,7 +86,7 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
       const { price } = draftPrice({ ...draft, price: given > 0 ? given : draft.price }, tx, st);
       base = { title: jobTitle(devis) || title, items: devisPriceItems(devis, price), devis, ...(draft.estimate ? { estimate: draft.estimate } : {}) };
     }
-    const doc = { type: 'quote', number, clientId, date, dueDate: addDays(date, st.quoteValidityDays), jobDate, jobAddress: address, ...base, ...taxes, notes: st.quoteNotes, status: 'draft', ...(jobId ? { jobId } : {}), createdAt: now, updatedAt: now } as Doc;
+    const doc = { type: 'quote', number, clientId, date, dueDate: addDays(date, st.quoteValidityDays), jobDate, ...(jobTime ? { jobTime } : {}), jobAddress: address, ...base, ...taxes, notes: st.quoteNotes, status: 'draft', ...(jobId ? { jobId } : {}), createdAt: now, updatedAt: now } as Doc;
     const id = await db.docs.add(doc);
     total = docTotals(doc, st).total;
     return { id, number };
@@ -99,7 +99,7 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
     return { invoiceId, number, total, summary: `Facture ${number} créée.` };
   }
   if (i.type === 'soumission' && !i.hasDate) {
-    const q = await makeQuote(todayISO());
+    const q = await makeQuote('', undefined, i.time); // pas de date de travaux connue: on n'en invente pas
     return { quoteId: q.id, number: q.number, total, summary: `${i.detailed ? 'Devis détaillé' : 'Soumission'} ${q.number} créé${i.detailed ? '' : 'e'}.` };
   }
   const visit = i.type === 'visite';
@@ -117,7 +117,7 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
     const date = patch.date ?? ej.date;
     const hasQuote = (await db.docs.where('clientId').equals(clientId).toArray()).some((d) => d.type === 'quote' && d.jobId === ej.id);
     let q: { id: number; number: string } | undefined;
-    if (i.type === 'soumission' || (!hasQuote && items.length)) q = await makeQuote(date, ej.id);
+    if (i.type === 'soumission' || (!hasQuote && items.length)) q = await makeQuote(date, ej.id, patch.time ?? ej.time);
     return { jobId: ej.id, quoteId: q?.id, number: q?.number, total, summary: `Job déjà planifiée le ${fmtDate(date, patch.time ?? ej.time)}: ${q ? `${i.detailed ? 'devis détaillé' : 'soumission'} ${q.number} créé${i.detailed ? '' : 'e'} et lié${i.detailed ? '' : 'e'} à cette job` : 'rien de nouveau à créer'}.` };
   }
   const jobId = await db.jobs.add({
@@ -128,7 +128,7 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
   let number: string | undefined;
   if (i.type === 'soumission' || (!visit && items.length)) {
     // une job planifiée garde sa soumission (à envoyer) liée
-    const q = await makeQuote(i.date, jobId);
+    const q = await makeQuote(i.date, jobId, i.time);
     quoteId = q.id;
     number = q.number;
   }
