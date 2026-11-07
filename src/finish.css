@@ -308,3 +308,9 @@ select option:checked, select option:hover { background-color: var(--trust-2, #2
 .lea-q { font-weight: 700; font-size: 0.95rem; margin-top: 2px; }
 .lea-chips-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .lea-chips-row .chip-btn.on { background: var(--amber); border-color: var(--amber); color: var(--on-amber); font-weight: 700; }
+
+/* Choix des taxes: bien visible, à côté du prix */
+.tax-mode { display: grid; gap: 6px; margin-top: 8px; }
+.tax-mode-q { font-weight: 700; font-size: 0.9rem; }
+.tax-mode .seg { display: grid; grid-template-columns: repeat(3, 1fr); }
+.tax-mode .seg button { padding-inline: 6px; font-size: 0.88rem; }

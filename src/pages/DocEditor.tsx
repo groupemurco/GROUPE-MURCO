@@ -6,6 +6,7 @@ import { ClientPicker } from '../components/ClientPicker';
 import { ClientFormModal } from '../components/ClientForm';
 import { clientDocMessage, companyTexts, dateFor, docLangOf, firstName, greeting, isEvening, moneyFor } from '../lib/docLang';
 import { emptyLine, LineItems } from '../components/LineItems';
+import { TaxMode } from '../components/TaxMode';
 import { Modal } from '../components/Modal';
 import { SendEmailModal } from '../components/SendEmailModal';
 import { errMsg, useConfirm, useToast } from '../components/Toast';
@@ -464,6 +465,7 @@ export default function DocEditor() {
         {doc.devis
           ? <DevisEditor doc={doc} onChange={upd} initialQuestions={questions} />
           : <LineItems items={doc.items} services={services} onChange={(items) => upd({ items })} lang={L} />}
+        {!doc.devis && <div style={{ marginTop: 16 }}><TaxMode doc={doc} onChange={upd} /></div>}
         <div className="grid two" style={{ marginTop: 16, alignItems: 'start' }}>
           <details className="doc-extras" open={!isMobile || !!doc.discount || !!doc.deposit || !doc.applyTps !== !s.chargeTaxes}>
           <summary className="hide-desktop">Rabais, dépôt et taxes <small>{[doc.discount ? `rabais ${money(doc.discount)}` : '', doc.deposit ? `dépôt ${money(doc.deposit)}` : '', doc.applyTps || doc.applyTvq ? (doc.taxIncluded ? 'taxes comprises dans le prix' : 'taxes en plus') : 'sans taxes'].filter(Boolean).join(' · ')}</small></summary>

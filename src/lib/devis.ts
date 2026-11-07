@@ -50,7 +50,8 @@ export function sectionTotalText(sec: DevisSection): string {
 
 /** Titre du document: « GROUPE MURCO — SOUMISSION DE CALFEUTRAGE ». */
 export function devisTitle(company: string, d: Pick<Devis, 'heading'>): string {
-  return [company.trim(), d.heading.trim()].filter(Boolean).join(' — ').toLocaleUpperCase('fr-CA');
+  // Le nom de l'entreprise est déjà en haut de la feuille: le titre est celui de la soumission
+  return (d.heading.trim() || company.trim()).toLocaleUpperCase('fr-CA');
 }
 
 /** Ligne de prix qui porte le montant (sert aux totaux, à la facture et aux rapports). */

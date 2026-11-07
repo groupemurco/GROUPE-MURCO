@@ -11,6 +11,7 @@ import { listen, speechSupported, type Listening } from '../lib/speech';
 import { docTotals, lineAmount, money, round2, websiteOf } from '../lib/utils';
 import { Modal } from './Modal';
 import { NumInput } from './NumInput';
+import { TaxMode } from './TaxMode';
 import { errMsg, useConfirm, useToast } from './Toast';
 
 export { devisPriceItems };
@@ -160,8 +161,8 @@ export function DevisEditor({ doc, onChange, initialQuestions = [] }: { doc: Doc
         <div className="dv-price-row">
           <NumInput value={price} placeholder="0" aria-label="Prix" onChange={(n) => onChange({ items: devisPriceItems(d, n) })} />
           <span>$</span>
-          <label className="check"><input type="checkbox" checked={!!doc.taxIncluded} onChange={(e) => onChange({ taxIncluded: e.target.checked })} /> Taxes incluses</label>
         </div>
+        <TaxMode doc={doc} onChange={onChange} />
         <div className="small muted">
           {doc.applyTps || doc.applyTvq
             ? doc.taxIncluded

@@ -28,7 +28,7 @@ function t(s: string | undefined | null): string {
 const m = (n: number) => t(money(n));
 const pct = (n: number) => t(`${new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 3 }).format(n)} %`);
 
-function header(pdf: jsPDF, s: Settings, title: string, L: DocLang = 'fr') {
+function header(pdf: jsPDF, s: Settings, title: string) {
   const W = pdf.internal.pageSize.getWidth();
   // Logo en haut à gauche, sur fond blanc; sans logo, le nom de l'entreprise en gras
   let y = 23;
@@ -55,11 +55,10 @@ function header(pdf: jsPDF, s: Settings, title: string, L: DocLang = 'fr') {
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8.5);
   pdf.setTextColor(60);
-  const rbq = s.rbqNumber ? `${D[L].rbq}: ${s.rbqNumber}` : '';
   const info = [
     companyAddressLines(s).join(', '),
     [...new Set([s.phone, s.email, websiteOf(s)].map((x) => x?.trim()).filter(Boolean))].join('  |  '),
-    [s.ownerName, rbq].filter(Boolean).join('  |  '),
+    s.ownerName,
   ].filter(Boolean);
   info.forEach((line, i) => pdf.text(t(line), 15, y + 3 + i * 4));
 
@@ -67,6 +66,10 @@ function header(pdf: jsPDF, s: Settings, title: string, L: DocLang = 'fr') {
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(22);
   pdf.text(t(title), W - 15, 20, { align: 'right' });
+  if (s.rbqNumber?.trim()) {
+    pdf.setFontSize(10.5);
+    pdf.text(t(`RBQ : ${s.rbqNumber.trim()}`), W - 15, 27, { align: 'right' });
+  }
   pdf.setDrawColor(200);
   pdf.setLineWidth(0.3);
   pdf.line(15, 43.5, W - 15, 43.5);
@@ -169,10 +172,13 @@ function drawDevis(pdf: jsPDF, doc: Doc, s: Settings, y0: number, L: DocLang, to
   const details: string[] = [];
   if (tot.discount > 0) details.push(`${T.discount} : ${mm(-tot.discount)}`);
   if (taxed && included) details.push([doc.applyTps && `${T.gstIncl} ${mm(tot.tps)}`, doc.applyTvq && `${T.qstIncl} ${mm(tot.tvq)}`].filter(Boolean).join('   ·   '));
-  if (taxed && !included) details.push([doc.applyTps && `${T.gst} (${pct(s.tpsRate)}) ${mm(tot.tps)}`, doc.applyTvq && `${T.qst} (${pct(s.tvqRate)}) ${mm(tot.tvq)}`].filter(Boolean).join('   ·   '));
+  if (taxed && !included) {
+    if (doc.applyTps) details.push(`${T.gst} (${pct(s.tpsRate)})   ${mm(tot.tps)}`);
+    if (doc.applyTvq) details.push(`${T.qst} (${pct(s.tvqRate)})   ${mm(tot.tvq)}`);
+  }
   if (tot.deposit > 0) details.push(`${T.deposit} : ${mm(tot.deposit)}`);
   const big = included || !taxed ? tot.total : tot.subtotal;
-  const tag = included ? T.taxesIncluded : taxed ? T.plusTaxes : '';
+  const tag = included ? T.taxesIncluded : taxed ? (L === 'en' ? 'Amount before taxes' : 'Montant avant taxes') : '';
   const showTotal = taxed && !included;
   const h = 15.5 + details.length * 4.5 + (showTotal ? 3 : 0);
   room(h + 8);
@@ -284,7 +290,7 @@ export function buildDocPdf(doc: Doc, client: Client | undefined, s: Settings, p
   const m = (n: number) => t(moneyFor(n, L));
   const fd = (iso: string) => dateFor(iso, L);
   const tx = companyTexts(s, L);
-  header(pdf, s, isInvoice ? T.invoice : T.quote, L);
+  header(pdf, s, isInvoice ? T.invoice : T.quote);
 
   // Deux blocs sur fond gris pâle: le client (gauche) et les infos du document (droite)
   const meta: [string, string][] = [
