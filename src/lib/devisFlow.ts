@@ -2,7 +2,7 @@
 // Partagé par l'éditeur de devis et la page « Soumission IA » (tout créé en un clic).
 import { db, takeNextNumber, type Doc, type LineItem, type Settings } from './db';
 import {
-  blankDevis, contactFromText, devisFromTemplate, devisFromText, devisLineDescription, estimateTotal, isDevisEmpty, priceFromEstimate, templateKeyFor,
+  blankDevis, contactFromText, parseTarif, tarifNote, devisFromTemplate, devisFromText, devisLineDescription, estimateTotal, isDevisEmpty, priceFromEstimate, templateKeyFor,
   templateKeyForText, withoutContact, type Devis, type DevisContact, type DevisDraft,
 } from './devis';
 import { syncLeadFromDoc } from './crm';
@@ -21,6 +21,13 @@ export function styleDevis(s: Settings): Devis {
   return own.length ? own[own.length - 1].devis : devisFromTemplate(templateKeyFor(activeTrades(s)));
 }
 
+/** « 75 pi lin à 6 $ du pied »: prix = quantité × tarif et la phrase du tarif sous le prix, sans dépendre de l'IA. */
+function withTarif(draft: DevisDraft, text: string): DevisDraft {
+  const tf = parseTarif(text);
+  if (!tf) return draft;
+  return { ...draft, price: round2(tf.qty * tf.rate), devis: { ...draft.devis, priceNote: tarifNote(tf) } };
+}
+
 /** L'assistant écrit le devis; s'il ne répond pas, on fait le mieux possible sans lui (failed explique pourquoi). */
 export async function runDevisAi(text: string, s: Settings, o: { current?: Devis; clientId?: number } = {}): Promise<{ draft: DevisDraft; failed?: string; isMail: boolean }> {
   const t = text.trim();
@@ -31,7 +38,7 @@ export async function runDevisAi(text: string, s: Settings, o: { current?: Devis
     const known = o.clientId ? (await db.clients.get(o.clientId))?.name : undefined;
     const prices = (await db.services.orderBy('order').toArray()).map((x) => ({ code: x.code, name: x.name, unit: x.unit, price: x.price, minimum: x.minimum }));
     const draft = await aiDevis({ company: s.companyName, owner: s.ownerName, trades, text: t, style: styleDevis(s), current: o.current, clientKnown: known, prices, model: s.aiModel || undefined });
-    return { draft, isMail };
+    return { draft: withTarif(draft, t), isMail };
   } catch (e) {
     // Sans l'assistant: un courriel → au moins les coordonnées; une phrase → chaque morceau devient un point
     const why = `L’assistant n’a pas répondu (${(e instanceof Error ? e.message : String(e)).slice(0, 70)}).`;
@@ -40,7 +47,7 @@ export async function runDevisAi(text: string, s: Settings, o: { current?: Devis
     const draft: DevisDraft = isMail
       ? { devis: o.current ?? (key ? devisFromTemplate(key) : blankDevis()), client: contact, address: contact.address, fromClient: true }
       : { ...devisFromText(withoutContact(t, contact), o.current ?? (key ? devisFromTemplate(key) : styleDevis(s))), client: contact, address: contact.address };
-    return { draft, failed: why, isMail };
+    return { draft: withTarif(draft, t), failed: why, isMail };
   }
 }
 

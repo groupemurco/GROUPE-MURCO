@@ -408,3 +408,21 @@ export function devisFromText(text: string, base: Devis): { devis: Devis; price?
   }
   return { devis, price: price && price > 0 ? r2(price) : undefined, taxIncluded };
 }
+
+/** « 75 pi lin à 6 $ du pied linéaire » → 75 pieds linéaires à 6 $ (lu directement dans ce que le patron a dit, sans dépendre de l'IA). */
+export function parseTarif(text: string): { qty: number; rate: number } | null {
+  const n = (x: string) => Number(x.replace(',', '.'));
+  const rate = /(\d+(?:[.,]\d+)?)\s*\$?\s*(?:du|le|par|\/|au)\s*(?:pied|pi)\b/i.exec(text);
+  const qty = /(\d+(?:[.,]\d+)?)\s*(?:pieds?|pi)\.?\s*(?:lin\w*|lineaires?|linéaires?)/i.exec(text) ?? /(\d+(?:[.,]\d+)?)\s*pieds?\b/i.exec(text);
+  if (!rate || !qty) return null;
+  const r = n(rate[1]);
+  const q = n(qty[1]);
+  return r > 0 && q > 0 ? { qty: q, rate: r } : null;
+}
+
+/** Phrase écrite sous le prix: « Tarif : 6,00 $ par pied linéaire. Base de calcul : 75 pieds linéaires. » */
+export function tarifNote(t: { qty: number; rate: number }): string {
+  const f = new Intl.NumberFormat('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const q = new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 2 }).format(t.qty);
+  return `Tarif : ${f.format(t.rate)} $ par pied linéaire. Base de calcul : ${q} pieds linéaires.`;
+}

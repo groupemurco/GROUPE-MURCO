@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   blankDevis, cleanItem, contactFromText, devisFromJson, devisFromTemplate, devisFromText, devisLineDescription, devisTitle, estimateTotal, isDevisEmpty, itemCount,
-  priceFromEstimate, sectionTotalText, splitIncludedTaxes, templateKeyFor, templateKeyForText, withoutContact, type Devis, type PriceRef,
+  priceFromEstimate, sectionTotalText, parseTarif, splitIncludedTaxes, tarifNote, templateKeyFor, templateKeyForText, withoutContact, type Devis, type PriceRef,
 } from '../src/lib/devis.ts';
 
 // L'exemple de Groupe Murco: 5 + 8 + 1 + 1 = 15 ouvertures
@@ -10,7 +10,7 @@ const calf: Devis = { ...devisFromTemplate('calfeutrage') };
 calf.sections = [{ ...calf.sections[0], items: ['5 fenêtres au sous-sol', '8 fenêtres au rez-de-chaussée', '1 porte d’entrée', '1 porte-patio'] }, ...calf.sections.slice(1)];
 assert.equal(sectionTotalText(calf.sections[0]), 'Total : 15 ouvertures');
 assert.equal(sectionTotalText(calf.sections[1]), ''); // les travaux inclus ne se comptent pas
-assert.equal(devisTitle('Groupe Murco', calf), 'GROUPE MURCO — SOUMISSION DE CALFEUTRAGE');
+assert.equal(devisTitle('Groupe Murco', calf), 'SOUMISSION DE CALFEUTRAGE'); // le nom de l'entreprise est déjà en haut de la feuille
 assert.equal(devisLineDescription(calf), 'Calfeutrage (15 ouvertures) — prix forfaitaire');
 
 // Rien de pré-écrit: les modèles n'ont pas d'éléments visés, un devis neuf est vide
@@ -128,4 +128,10 @@ assert.equal(templateKeyForText('installer un spa'), undefined);
 const sansIa = devisFromText(withoutContact(phrase, pc), devisFromTemplate('calfeutrage'));
 assert.equal(sectionTotalText(sansIa.devis.sections[0]), 'Total : 16 ouvertures'); // 6 + 9 + la porte (1)
 
-console.log('devis: 68 cas OK');
+// Tarif dit par le patron: 75 pieds linéaires à 6 $ du pied
+assert.deepEqual(parseTarif('caulking couleur stone, 75 pi lin a 6$ du pied linaire'), { qty: 75, rate: 6 });
+assert.deepEqual(parseTarif('75 pieds linéaires à 6,50 $ le pied'), { qty: 75, rate: 6.5 });
+assert.equal(parseTarif('2 fenêtres et 1 porte, 450 $'), null);
+assert.equal(tarifNote({ qty: 75, rate: 6 }), 'Tarif : 6,00 $ par pied linéaire. Base de calcul : 75 pieds linéaires.');
+
+console.log('devis: 72 cas OK');

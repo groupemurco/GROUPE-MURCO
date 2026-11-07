@@ -322,3 +322,11 @@ label.field:focus-within, .addr:focus-within { z-index: 40; }
 
 /* La liste d'adresses est sortie du formulaire (portail): toujours devant, jamais coupée */
 .addr-float { position: fixed; z-index: 5000; margin: 0; overflow-y: auto; overscroll-behavior: contain; }
+
+/* Rien ne dépasse de l'écran du téléphone (champs longs, choix des taxes…) */
+.tax-mode .seg { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tax-mode .seg button { white-space: normal; line-height: 1.15; overflow-wrap: anywhere; min-height: 44px; }
+.card, .form-grid > *, .grid > *, .dv-price, .dv-price-row { min-width: 0; }
+.dv-price-row { flex-wrap: wrap; }
+.main { max-width: 100%; overflow-x: clip; }
+label.field input, label.field select, label.field textarea { min-width: 0; max-width: 100%; }

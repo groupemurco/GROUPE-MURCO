@@ -3,7 +3,7 @@ import type { AiDoc } from './ai';
 import { blankJob } from './agenda';
 import { findClients } from './fuzzy';
 import { db, getSettings, takeNextNumber, type Doc, type Job, type LineItem, type Service } from './db';
-import { isDevisEmpty } from './devis';
+import { isDevisEmpty, parseTarif } from './devis';
 import { devisPriceItems, draftPrice, jobTitle, runDevisAi, styleDevis } from './devisFlow';
 import { addDays, docTotals, lineAmount, todayISO } from './utils';
 
@@ -51,17 +51,6 @@ export async function plannedJobOf(clientId: number): Promise<Job | undefined> {
   return (await db.jobs.where('clientId').equals(clientId).toArray())
     .filter((j) => j.status === 'planifie' && j.type !== 'estimation' && j.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date))[0];
-}
-
-/** « 75 pi lin à 6 $ du pied linéaire » → 75 pieds linéaires à 6 $ (lu directement dans ce que le patron a dit, sans dépendre de l'IA). */
-export function parseTarif(text: string): { qty: number; rate: number } | null {
-  const n = (x: string) => Number(x.replace(',', '.'));
-  const rate = /(\d+(?:[.,]\d+)?)\s*\$?\s*(?:du|le|par|\/|au)\s*(?:pied|pi)\b/i.exec(text);
-  const qty = /(\d+(?:[.,]\d+)?)\s*(?:pieds?|pi)\.?\s*(?:lin\w*|lineaires?|linéaires?)/i.exec(text) ?? /(\d+(?:[.,]\d+)?)\s*pieds?\b/i.exec(text);
-  if (!rate || !qty) return null;
-  const r = n(rate[1]);
-  const q = n(qty[1]);
-  return r > 0 && q > 0 ? { qty: q, rate: r } : null;
 }
 
 const money2 = (x: number) => new Intl.NumberFormat('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(x);
