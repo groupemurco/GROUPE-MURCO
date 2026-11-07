@@ -41,7 +41,7 @@ function toResult(name: string, a: Record<string, unknown>): AiResult | null {
       date: /^\d{4}-\d{2}-\d{2}$/.test(String(a.date ?? '')) ? String(a.date) : undefined,
       time: /^\d{1,2}:\d{2}$/.test(String(a.heure ?? '')) ? String(a.heure).padStart(5, '0') : undefined,
       detailed: a.devis_detaille === true,
-      lines: lignes.map((l) => ({ code: l.code ? String(l.code).toUpperCase() : undefined, description: l.description ? String(l.description) : undefined, quantity: Number(l.quantite) > 0 ? Number(l.quantite) : 1, unitPrice: typeof l.prix_unitaire === 'number' ? l.prix_unitaire : undefined })),
+      lines: lignes.map((l) => ({ code: l.code ? String(l.code).toUpperCase() : undefined, description: l.description ? String(l.description) : undefined, quantity: Number(l.quantite) > 0 ? Number(l.quantite) : 1, unit: l.unite ? String(l.unite) : undefined, unitPrice: typeof l.prix_unitaire === 'number' ? l.prix_unitaire : undefined })),
     };
     return { kind: 'doc', text: '', doc };
   }

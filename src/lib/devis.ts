@@ -72,7 +72,7 @@ export function splitIncludedTaxes(gross: number, tpsRate: number, tvqRate: numb
 }
 
 const D = (heading: string, sections: DevisSection[], priceNote: string, conditions: string[], closing = 'Merci de votre confiance. Au plaisir de réaliser vos travaux!'): Devis => ({
-  heading, sections, priceLabel: 'Prix forfaitaire proposé', priceNote, conditions, closing,
+  heading, sections, priceLabel: 'Prix forfaitaire', priceNote, conditions, closing,
 });
 
 const COMMON_CONDITIONS = [
@@ -225,7 +225,7 @@ export function blankDevis(): Devis {
   return {
     heading: '',
     sections: [{ title: 'Travaux visés', items: [] }, { title: 'Travaux inclus', items: [] }],
-    priceLabel: 'Prix forfaitaire proposé',
+    priceLabel: 'Prix forfaitaire',
     priceNote: '',
     conditions: [],
     closing: 'Merci de votre confiance. Au plaisir de réaliser vos travaux!',

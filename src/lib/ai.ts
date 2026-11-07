@@ -29,7 +29,7 @@ export interface AiDoc {
   address?: string;
   date?: string; // YYYY-MM-DD
   time?: string; // HH:MM
-  lines: { code?: string; description?: string; quantity: number; unitPrice?: number }[];
+  lines: { code?: string; description?: string; quantity: number; unit?: string; unitPrice?: number }[];
   detailed?: boolean; // devis détaillé demandé
 }
 export interface AiOrder {
@@ -162,9 +162,10 @@ export const TOOLS: FunctionDeclaration[] = [
               code: Schema.string({ description: 'Code du service de la liste de prix' }),
               description: Schema.string({ description: 'Seulement si aucun code ne correspond' }),
               quantite: Schema.number(),
-              prix_unitaire: Schema.number({ description: 'Seulement si l’utilisateur a dit un prix' }),
+              unite: Schema.string({ description: 'Unité dite: pi lin (pied linéaire), pi², fenêtre, heure, forfait…' }),
+              prix_unitaire: Schema.number({ description: 'Seulement si l’utilisateur a dit un prix (ex.: 6 pour « 6 $ du pied linéaire »)' }),
             },
-            optionalProperties: ['code', 'description', 'prix_unitaire'],
+            optionalProperties: ['code', 'description', 'unite', 'prix_unitaire'],
           }),
         }),
       },
@@ -382,7 +383,7 @@ export class AiAssistant {
               date: /^\d{4}-\d{2}-\d{2}$/.test(String(a.date ?? '')) ? String(a.date) : undefined,
               time: /^\d{1,2}:\d{2}$/.test(String(a.heure ?? '')) ? String(a.heure).padStart(5, '0') : undefined,
               detailed: a.devis_detaille === true,
-              lines: lignes.map((l) => ({ code: l.code ? String(l.code).toUpperCase() : undefined, description: l.description ? String(l.description) : undefined, quantity: Number(l.quantite) > 0 ? Number(l.quantite) : 1, unitPrice: typeof l.prix_unitaire === 'number' ? l.prix_unitaire : undefined })),
+              lines: lignes.map((l) => ({ code: l.code ? String(l.code).toUpperCase() : undefined, description: l.description ? String(l.description) : undefined, quantity: Number(l.quantite) > 0 ? Number(l.quantite) : 1, unit: l.unite ? String(l.unite) : undefined, unitPrice: typeof l.prix_unitaire === 'number' ? l.prix_unitaire : undefined })),
             },
           };
           answers.push({ functionResponse: { name: c.name, response: { resultat: 'Résumé affiché; l’utilisateur va le vérifier et confirmer.' } } });
@@ -501,7 +502,8 @@ Règles:
 - « titre »: « Soumission de … » selon les travaux.
 - Première section: ce qui est visé (« Ouvertures visées », « Pièces visées », « Travaux visés »…), un élément par point, chiffré quand le nombre est connu (ex.: « 5 fenêtres au sous-sol »). « compter »: le mot pour le total (ex.: « ouvertures ») seulement si les éléments se comptent, sinon vide.
 - Deuxième section « Travaux inclus »: les étapes, phrases terminées par « ; » et la dernière par « . ».
-- « conditions »: 2 à 4 conditions utiles pour ces travaux. « note_prix »: une phrase utile sous le prix, ou vide.
+- « conditions »: 2 à 4 conditions utiles pour ces travaux. « note_prix »: une phrase utile sous le prix, ou vide. Si le texte donne un tarif et une quantité (ex.: « 75 pieds linéaires à 6 $ du pied »), mets « prix » = quantité × tarif et « note_prix » = « Tarif : 6,00 $ par pied linéaire. Base de calcul : 75 pieds linéaires. » avec SES chiffres exacts.
+- Reprends fidèlement tous les détails donnés par l’entrepreneur (produit, couleur, quantités, nombre d’ouvertures…): mets-les dans les points du devis, sans les changer ni en inventer d’autres.
 - « prix »: seulement si un prix est donné (nombre, sans $). « taxes_incluses »: true si « taxes incluses », false si « plus taxes », sinon absent.
 - « client »: les coordonnées du client trouvées dans le texte (nom, contact, courriel, telephone, adresse); jamais celles de ${opts.company || 'l’entreprise'}.${opts.clientKnown ? ` Le client est déjà choisi: ${opts.clientKnown}.` : ''}
 - « adresse »: l’adresse des travaux si elle est donnée. « courriel_client »: true si le texte est un message écrit par le client.

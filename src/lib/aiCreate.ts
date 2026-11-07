@@ -15,7 +15,7 @@ export function aiItems(a: AiDoc, services: Service[], lang: 'fr' | 'en' = 'fr')
       const it: LineItem = { code: sv.code, description: lang === 'en' && sv.nameEn ? sv.nameEn : sv.name, unit: sv.unit, quantity: l.quantity, unitPrice: sv.price, minimum: sv.minimum };
       return l.unitPrice != null ? { ...it, unitPrice: l.unitPrice } : it;
     }
-    return { code: '', description: l.description || l.code || 'Travaux', quantity: l.quantity, unitPrice: l.unitPrice ?? 0 };
+    return { code: '', description: l.description || l.code || 'Travaux', unit: l.unit || undefined, quantity: l.quantity, unitPrice: l.unitPrice ?? 0 };
   });
 }
 
@@ -80,11 +80,17 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
     let base: Partial<Doc> = { title, items };
     if (i.detailed) {
       const given = items.reduce((a, it) => a + lineAmount(it), 0);
-      const text = [i.ask, address && `Lieu des travaux: ${address}`, work && `Travaux: ${work}`, given > 0 && `Prix: ${given} $ ${tx.taxIncluded ? 'taxes incluses' : 'avant taxes'}`].filter(Boolean).join('. ');
+      const priced = items.filter((it) => it.unitPrice);
+      const calc = priced.map((it) => `${it.description}: ${it.quantity}${it.unit ? ' ' + it.unit : ''} à ${it.unitPrice} $${it.unit && it.quantity > 1 ? ' par ' + it.unit : ''}`).join('; ');
+      const text = [i.ask, address && `Lieu des travaux: ${address}`, work && `Travaux: ${work}`, calc && `Calcul du prix: ${calc}`, given > 0 && `Prix: ${given} $ ${tx.taxIncluded ? 'taxes incluses' : 'avant taxes'}`].filter(Boolean).join('. ');
       const { draft } = await runDevisAi(text, st, { clientId });
       const devis = isDevisEmpty(draft.devis) ? styleDevis(st) : draft.devis;
       const { price } = draftPrice({ ...draft, price: given > 0 ? given : draft.price }, tx, st);
-      base = { title: jobTitle(devis) || title, items: devisPriceItems(devis, price), devis, ...(draft.estimate ? { estimate: draft.estimate } : {}) };
+      // Le tarif dit par le patron (ex.: 75 pi lin à 6 $) s'écrit sous le prix, si l'assistant ne l'a pas fait
+      const one = priced.length === 1 && priced[0].quantity > 1 ? priced[0] : undefined;
+      const note = devis.priceNote.trim() || (one ? `Tarif : ${new Intl.NumberFormat('fr-CA', { minimumFractionDigits: 2 }).format(one.unitPrice)} $${one.unit ? ' par ' + one.unit : ''}. Base de calcul : ${one.quantity}${one.unit ? ' ' + one.unit : ''}.` : '');
+      const final = { ...devis, priceNote: note };
+      base = { title: jobTitle(final) || title, items: devisPriceItems(final, price), devis: final, ...(draft.estimate ? { estimate: draft.estimate } : {}) };
     }
     const doc = { type: 'quote', number, clientId, date, dueDate: addDays(date, st.quoteValidityDays), jobDate, ...(jobTime ? { jobTime } : {}), jobAddress: address, ...base, ...taxes, notes: st.quoteNotes, status: 'draft', ...(jobId ? { jobId } : {}), createdAt: now, updatedAt: now } as Doc;
     const id = await db.docs.add(doc);

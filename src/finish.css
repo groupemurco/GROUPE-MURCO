@@ -319,3 +319,6 @@ select option:checked, select option:hover { background-color: var(--trust-2, #2
 label.field:focus-within, .addr:focus-within { z-index: 40; }
 .addr-list { z-index: 90; background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; pointer-events: auto; }
 .addr-list button { position: relative; z-index: 1; }
+
+/* La liste d'adresses est sortie du formulaire (portail): toujours devant, jamais coupée */
+.addr-float { position: fixed; z-index: 5000; margin: 0; overflow-y: auto; overscroll-behavior: contain; }

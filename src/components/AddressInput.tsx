@@ -1,5 +1,6 @@
 import { Building2, MapPin } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { db, type GeoPoint } from '../lib/db';
 import { suggestAddresses } from '../lib/geo';
 
@@ -51,6 +52,29 @@ export function AddressInput({ value, onChange, onPick, placeholder, autoFocus }
   const typed = useRef(false);
   const timer = useRef<number | undefined>(undefined);
   const seq = useRef(0);
+  const wrap = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<CSSProperties>({});
+
+  // La liste flotte au-dessus de tout (hors du formulaire): aucun champ, fenêtre ou menu ne peut la cacher
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const r = wrap.current?.getBoundingClientRect();
+      if (!r) return;
+      const below = window.innerHeight - r.bottom - 12;
+      const up = below < 190 && r.top > below;
+      setPos(up
+        ? { position: 'fixed', left: r.left, width: r.width, bottom: window.innerHeight - r.top + 4, top: 'auto', maxHeight: Math.min(r.top - 12, 320) }
+        : { position: 'fixed', left: r.left, width: r.width, top: r.bottom + 4, bottom: 'auto', maxHeight: Math.max(120, Math.min(below, 320)) });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [open, items.length]);
 
   useEffect(() => {
     if (!typed.current) return;
@@ -100,7 +124,7 @@ export function AddressInput({ value, onChange, onPick, placeholder, autoFocus }
   const firstWeb = items.findIndex((x) => !x.local);
 
   return (
-    <div className="addr" onBlur={() => setTimeout(() => setOpen(false), 200)}>
+    <div className="addr" ref={wrap} onBlur={() => setTimeout(() => setOpen(false), 200)}>
       <input
         value={value}
         placeholder={placeholder}
@@ -122,8 +146,8 @@ export function AddressInput({ value, onChange, onPick, placeholder, autoFocus }
           else if (e.key === 'Escape') setOpen(false);
         }}
       />
-      {open && (
-        <div className="addr-list" role="listbox">
+      {open && createPortal(
+        <div className="addr-list addr-float" role="listbox" style={pos}>
           {items.map((s, i) => (
             <div key={`${s.local ? 'l' : 'w'}${s.label}`}>
               {i === 0 && s.local && <div className="addr-head">Déjà dans tes dossiers</div>}
@@ -134,7 +158,8 @@ export function AddressInput({ value, onChange, onPick, placeholder, autoFocus }
               </button>
             </div>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
