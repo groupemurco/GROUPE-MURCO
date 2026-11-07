@@ -330,3 +330,9 @@ label.field:focus-within, .addr:focus-within { z-index: 40; }
 .dv-price-row { flex-wrap: wrap; }
 .main { max-width: 100%; overflow-x: clip; }
 label.field input, label.field select, label.field textarea { min-width: 0; max-width: 100%; }
+
+/* Devis détaillé: les colonnes ne s'élargissent plus avec le contenu (rien ne dépasse à droite de l'écran) */
+.devis-ed, .dv-sec, .dv-ai, .dv-price { grid-template-columns: minmax(0, 1fr); }
+.devis-ed > *, .dv-sec > *, .dv-ai > *, .dv-price > * { min-width: 0; max-width: 100%; }
+.devis-ed textarea, .devis-ed select, .devis-ed input:not([type=checkbox]) { max-width: 100%; }
+.dv-tools .dv-tpl { flex: 1 1 140px; }

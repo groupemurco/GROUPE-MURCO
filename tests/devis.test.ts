@@ -131,6 +131,8 @@ assert.equal(sectionTotalText(sansIa.devis.sections[0]), 'Total : 16 ouvertures'
 // Tarif dit par le patron: 75 pieds linéaires à 6 $ du pied
 assert.deepEqual(parseTarif('caulking couleur stone, 75 pi lin a 6$ du pied linaire'), { qty: 75, rate: 6 });
 assert.deepEqual(parseTarif('75 pieds linéaires à 6,50 $ le pied'), { qty: 75, rate: 6.5 });
+assert.deepEqual(parseTarif('calfeutrage 75 pi lin a 6$ pied lineaire pour M Crete'), { qty: 75, rate: 6 });
+assert.deepEqual(parseTarif('75 pieds linéaires, 6 $/pi'), { qty: 75, rate: 6 });
 assert.equal(parseTarif('2 fenêtres et 1 porte, 450 $'), null);
 assert.equal(tarifNote({ qty: 75, rate: 6 }), 'Tarif : 6,00 $ par pied linéaire. Base de calcul : 75 pieds linéaires.');
 

@@ -409,15 +409,28 @@ export function devisFromText(text: string, base: Devis): { devis: Devis; price?
   return { devis, price: price && price > 0 ? r2(price) : undefined, taxIncluded };
 }
 
-/** « 75 pi lin à 6 $ du pied linéaire » → 75 pieds linéaires à 6 $ (lu directement dans ce que le patron a dit, sans dépendre de l'IA). */
+/** « 75 pi lin à 6 $ du pied linéaire » (ou « 6$ pied lineaire », « 6 $/pi ») → 75 pieds linéaires à 6 $ (lu directement dans ce que le patron a dit, sans dépendre de l'IA). */
+const RATE_RE = [
+  /(\d+(?:[.,]\d+)?)\s*\$\s*(?:(?:du|le|la|par|au|d'un|\/)\s*)?(?:pieds?|pi)\b/i,
+  /(\d+(?:[.,]\d+)?)\s*(?:du|le|par|\/)\s*(?:pieds?|pi)\b/i,
+];
+const QTY_RE = [/(\d+(?:[.,]\d+)?)\s*(?:pieds?|pi)\.?\s*(?:lin\w*|lineaires?|linéaires?)/i, /(\d+(?:[.,]\d+)?)\s*pieds?\b/i];
 export function parseTarif(text: string): { qty: number; rate: number } | null {
   const n = (x: string) => Number(x.replace(',', '.'));
-  const rate = /(\d+(?:[.,]\d+)?)\s*\$?\s*(?:du|le|par|\/|au)\s*(?:pied|pi)\b/i.exec(text);
-  const qty = /(\d+(?:[.,]\d+)?)\s*(?:pieds?|pi)\.?\s*(?:lin\w*|lineaires?|linéaires?)/i.exec(text) ?? /(\d+(?:[.,]\d+)?)\s*pieds?\b/i.exec(text);
+  const rate = RATE_RE.map((r) => r.exec(text)).find(Boolean);
+  const qty = QTY_RE.map((r) => r.exec(text)).find((m) => m && (!rate || m.index !== rate.index));
   if (!rate || !qty) return null;
   const r = n(rate[1]);
   const q = n(qty[1]);
   return r > 0 && q > 0 ? { qty: q, rate: r } : null;
+}
+
+/** Le texte sans la quantité ni le tarif (pour qu'ils ne soient pas comptés comme des ouvertures). */
+export function withoutTarif(text: string): string {
+  if (!parseTarif(text)) return text;
+  let t = text;
+  for (const r of [...QTY_RE, ...RATE_RE]) t = t.replace(new RegExp(r.source, 'gi'), ' ');
+  return t.replace(/\s+(?:à|a|@|,)\s+(?=[,.;]|$)/g, ' ').replace(/\s{2,}/g, ' ').trim();
 }
 
 /** Phrase écrite sous le prix: « Tarif : 6,00 $ par pied linéaire. Base de calcul : 75 pieds linéaires. » */

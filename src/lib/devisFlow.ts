@@ -2,7 +2,7 @@
 // Partagé par l'éditeur de devis et la page « Soumission IA » (tout créé en un clic).
 import { db, takeNextNumber, type Doc, type LineItem, type Settings } from './db';
 import {
-  blankDevis, contactFromText, parseTarif, tarifNote, devisFromTemplate, devisFromText, devisLineDescription, estimateTotal, isDevisEmpty, priceFromEstimate, templateKeyFor,
+  blankDevis, contactFromText, parseTarif, tarifNote, withoutTarif, devisFromTemplate, devisFromText, devisLineDescription, estimateTotal, isDevisEmpty, priceFromEstimate, templateKeyFor,
   templateKeyForText, withoutContact, type Devis, type DevisContact, type DevisDraft,
 } from './devis';
 import { syncLeadFromDoc } from './crm';
@@ -46,7 +46,7 @@ export async function runDevisAi(text: string, s: Settings, o: { current?: Devis
     const key = templateKeyForText(t);
     const draft: DevisDraft = isMail
       ? { devis: o.current ?? (key ? devisFromTemplate(key) : blankDevis()), client: contact, address: contact.address, fromClient: true }
-      : { ...devisFromText(withoutContact(t, contact), o.current ?? (key ? devisFromTemplate(key) : styleDevis(s))), client: contact, address: contact.address };
+      : { ...devisFromText(withoutContact(withoutTarif(t), contact), o.current ?? (key ? devisFromTemplate(key) : styleDevis(s))), client: contact, address: contact.address };
     return { draft: withTarif(draft, t), failed: why, isMail };
   }
 }
