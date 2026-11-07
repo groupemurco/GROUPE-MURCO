@@ -55,6 +55,7 @@ export function LeaChat() {
   const [relanceDoc, setRelanceDoc] = useState<Doc | null>(null);
   const [photo, setPhoto] = useState<{ mimeType: string; data: string; url: string } | null>(null);
   const ai = useRef<AiAssistant | null>(null);
+  const askLog = useRef<string[]>([]);
   const [call, setCall] = useState<'off' | 'on'>('off');
   const [phase, setPhase] = useState<'listen' | 'think' | 'speak'>('listen');
   const [heard, setHeard] = useState('');
@@ -147,6 +148,7 @@ export function LeaChat() {
     setInput('');
     setPhoto(null);
     setMsgs((m) => [...m, { me: true, text: img ? `📷 ${text}` : text }]);
+    askLog.current.push(text);
     setBusy(true);
     try {
       if (!ai.current) {
@@ -159,7 +161,7 @@ export function LeaChat() {
         });
       }
       const r = await ai.current.send(text, img ? { mimeType: img.mimeType, data: img.data } : undefined);
-      return await showResult(r, text, img);
+      return await showResult(r, askLog.current.slice(-8).join('. '), img);
     } catch (e) {
       const m = aiErrorMessage(e).replace(' J’utilise l’assistant de base.', '');
       setMsgs((all) => [...all, { text: m }]);

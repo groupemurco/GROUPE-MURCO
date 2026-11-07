@@ -53,6 +53,19 @@ export async function plannedJobOf(clientId: number): Promise<Job | undefined> {
     .sort((a, b) => a.date.localeCompare(b.date))[0];
 }
 
+/** « 75 pi lin à 6 $ du pied linéaire » → 75 pieds linéaires à 6 $ (lu directement dans ce que le patron a dit, sans dépendre de l'IA). */
+export function parseTarif(text: string): { qty: number; rate: number } | null {
+  const n = (x: string) => Number(x.replace(',', '.'));
+  const rate = /(\d+(?:[.,]\d+)?)\s*\$?\s*(?:du|le|par|\/|au)\s*(?:pied|pi)\b/i.exec(text);
+  const qty = /(\d+(?:[.,]\d+)?)\s*(?:pieds?|pi)\.?\s*(?:lin\w*|lineaires?|linéaires?)/i.exec(text) ?? /(\d+(?:[.,]\d+)?)\s*pieds?\b/i.exec(text);
+  if (!rate || !qty) return null;
+  const r = n(rate[1]);
+  const q = n(qty[1]);
+  return r > 0 && q > 0 ? { qty: q, rate: r } : null;
+}
+
+const money2 = (x: number) => new Intl.NumberFormat('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(x);
+
 export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
   const st = await getSettings();
   const now = new Date().toISOString();
@@ -65,7 +78,10 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
     if (!i.name.trim()) throw new Error('Quel est le nom du client?');
     clientId = await db.clients.add({ name: i.name.trim(), contact: '', email: '', phone: i.phone.trim(), address: i.address.trim(), notes: '', createdAt: now });
   }
-  const items = i.items.filter((it) => it.description.trim() || it.unitPrice || it.code);
+  let items = i.items.filter((it) => it.description.trim() || it.unitPrice || it.code);
+  // Tarif dit par le patron (« 75 pi lin à 6 $ du pied linéaire »): une ligne avec ses chiffres exacts
+  const tarif = i.type === 'soumission' || i.type === 'job' ? parseTarif([i.ask, ...i.items.map((it) => it.description)].filter(Boolean).join('. ')) : null;
+  if (tarif && items.length <= 1) items = [{ code: '', description: items[0]?.description || 'Calfeutrage', unit: 'pi lin', quantity: tarif.qty, unitPrice: tarif.rate }];
   const work = items.map((it) => it.description).filter(Boolean).join(' + ');
   const title = work || 'Job';
   const tx = i.tax ?? { applyTps: st.chargeTaxes, applyTvq: st.chargeTaxes, taxIncluded: false };
@@ -88,7 +104,9 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
       const { price } = draftPrice({ ...draft, price: given > 0 ? given : draft.price }, tx, st);
       // Le tarif dit par le patron (ex.: 75 pi lin à 6 $) s'écrit sous le prix, si l'assistant ne l'a pas fait
       const one = priced.length === 1 && priced[0].quantity > 1 ? priced[0] : undefined;
-      const note = devis.priceNote.trim() || (one ? `Tarif : ${new Intl.NumberFormat('fr-CA', { minimumFractionDigits: 2 }).format(one.unitPrice)} $${one.unit ? ' par ' + one.unit : ''}. Base de calcul : ${one.quantity}${one.unit ? ' ' + one.unit : ''}.` : '');
+      const lin = !!one && /^pi\.?\s*lin|pied.*lin/i.test(one.unit ?? '');
+      const noteOf = (it: LineItem) => lin ? `Tarif : ${money2(it.unitPrice)} $ par pied linéaire. Base de calcul : ${it.quantity} pieds linéaires.` : `Tarif : ${money2(it.unitPrice)} $${it.unit ? ' par ' + it.unit : ''}. Base de calcul : ${it.quantity}${it.unit ? ' ' + it.unit : ''}.`;
+      const note = tarif && one ? noteOf(one) : devis.priceNote.trim() || (one ? noteOf(one) : '');
       const final = { ...devis, priceNote: note };
       base = { title: jobTitle(final) || title, items: devisPriceItems(final, price), devis: final, ...(draft.estimate ? { estimate: draft.estimate } : {}) };
     }
