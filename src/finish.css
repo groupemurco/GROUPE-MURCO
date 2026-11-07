@@ -314,3 +314,8 @@ select option:checked, select option:hover { background-color: var(--trust-2, #2
 .tax-mode-q { font-weight: 700; font-size: 0.9rem; }
 .tax-mode .seg { display: grid; grid-template-columns: repeat(3, 1fr); }
 .tax-mode .seg button { padding-inline: 6px; font-size: 0.88rem; }
+
+/* Liste d'adresses: toujours au-dessus des champs qui suivent (Langue, Notes…) et bien opaque pour pouvoir cliquer dessus */
+label.field:focus-within, .addr:focus-within { z-index: 40; }
+.addr-list { z-index: 90; background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; pointer-events: auto; }
+.addr-list button { position: relative; z-index: 1; }
