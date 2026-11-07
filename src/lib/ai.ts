@@ -30,6 +30,7 @@ export interface AiDoc {
   date?: string; // YYYY-MM-DD
   time?: string; // HH:MM
   lines: { code?: string; description?: string; quantity: number; unitPrice?: number }[];
+  detailed?: boolean; // devis détaillé demandé
 }
 export interface AiOrder {
   supplier?: string;
@@ -61,6 +62,42 @@ export type AiResult =
   | { kind: 'doc'; doc: AiDoc; text: string }
   | { kind: 'client'; edit: AiClientEdit; text: string }
   | { kind: 'intent'; intent: Intent; text: string };
+
+/**
+ * L'IA recopie parfois mal un long numéro de client (…557 devient …560): la facture se retrouve alors sans client.
+ * On remplace le numéro reçu par celui du client le plus proche (les numéros viennent de l'heure, ils sont très espacés).
+ */
+export function fixClientId(n: number | undefined, clients: { id?: number }[]): number | undefined {
+  if (n === undefined || !Number.isFinite(n)) return undefined;
+  if (clients.some((c) => c.id === n)) return n;
+  let best: number | undefined;
+  let gap = Infinity;
+  for (const c of clients) {
+    if (c.id === undefined) continue;
+    const d = Math.abs(c.id - n);
+    if (d < gap) { gap = d; best = c.id; }
+  }
+  return best !== undefined && gap <= 1000 ? best : n;
+}
+
+/** Remet les bons numéros de client dans une action préparée par l'IA. */
+export function normalizeAction<T extends AiResult>(r: T, clients: { id?: number; name?: string }[]): T {
+  const fix = (n: number | undefined) => fixClientId(n, clients);
+  if (r.kind === 'doc') {
+    let clientId = fix(r.doc.clientId);
+    // Pas de numéro, mais un nom qui est celui d'un client existant: c'est lui
+    if (clientId === undefined && r.doc.name) {
+      const hit = findClients(r.doc.name, clients.filter((c): c is { id: number; name: string } => !!c.name && c.id !== undefined));
+      if (hit.length === 1) clientId = hit[0].id;
+    }
+    return { ...r, doc: { ...r.doc, clientId } };
+  }
+  if (r.kind === 'order') return { ...r, order: { ...r.order, clientId: fix(r.order.clientId) } };
+  if (r.kind === 'intent') return { ...r, intent: { ...r.intent, clientId: fix(r.intent.clientId) } };
+  if (r.kind === 'client') return { ...r, edit: { ...r.edit, clientId: fix(r.edit.clientId) ?? r.edit.clientId } };
+  if (r.kind === 'message') return { ...r, message: { ...r.message, clientId: fix(r.message.clientId) ?? r.message.clientId } };
+  return r;
+}
 
 /** Appel de modifier_client → changement à confirmer (null si le client ou les champs manquent). */
 export function toClientEdit(a: Record<string, unknown>): AiClientEdit | null {
@@ -118,6 +155,7 @@ export const TOOLS: FunctionDeclaration[] = [
         adresse: Schema.string({ description: 'Adresse des travaux (numéro, rue, ville)' }),
         date: Schema.string({ description: 'YYYY-MM-DD' }),
         heure: Schema.string({ description: 'HH:MM, 24 h' }),
+        devis_detaille: Schema.boolean({ description: 'true si le patron demande un devis / une soumission DÉTAILLÉE (texte complet des travaux, ouvertures, conditions). L’app rédige alors le devis complet.' }),
         lignes: Schema.array({
           items: Schema.object({
             properties: {
@@ -130,7 +168,7 @@ export const TOOLS: FunctionDeclaration[] = [
           }),
         }),
       },
-      optionalProperties: ['client_id', 'nouveau_client_nom', 'telephone', 'adresse', 'date', 'heure'],
+      optionalProperties: ['client_id', 'nouveau_client_nom', 'telephone', 'adresse', 'date', 'heure', 'devis_detaille'],
     }),
   },
   {
@@ -222,6 +260,7 @@ Ta job: comprendre ce qu’il veut et le préparer avec les fonctions. Il confir
 - Des matériaux à acheter (« commande », « faut que j’achète », « appelle le fournisseur »): appelle commander_fournisseur.
 - Dès que tu as l’essentiel, appelle preparer_document (ou commande_rapide pour le reste) sans redemander de confirmation.
 - Tu es AUSSI une assistante personnelle complète, pas seulement pour les factures: réponds directement à toute question (calcul de quantités de matériaux comme la peinture, le béton, les bardeaux, conversions, prix approximatifs, conseils de métier, idées, rédaction de messages). Donne le résultat tout de suite avec tes hypothèses courantes (ex.: un gallon de peinture couvre environ 350 pi², compte 2 couches; arrondis à l’achat), sans demander la permission. Ne refuse jamais une demande ordinaire.
+- « Devis détaillé » / « soumission détaillée » / « un devis complet »: preparer_document type soumission avec devis_detaille=true (mets quand même le prix dit en une ligne de lignes). Sans ces mots, c’est une soumission en lignes de prix (devis_detaille absent).
 - « Planifie-moi telle job tel jour »: preparer_document type job (travaux + date). « Je dois aller faire une estimation / voir ça à telle adresse »: preparer_document type visite (client, adresse, date). Une soumission à envoyer: type soumission.
 - Un message à envoyer à un client (« relance Girard pour sa facture », « écris à Roy que je passe demain »): chercher_client puis ecrire_message avec le texte complet. Pour une facture impayée, utilise ce que tu sais (montant, numéro) seulement s’il te l’a dit; sinon reste général et poli.
 - Une PHOTO envoyée: un reçu ou une facture de fournisseur → commande_rapide action depense (montant total, fournisseur, catégorie, date si lisible); un courriel ou une demande de client → preparer_document type soumission (client, adresse, travaux); une photo de chantier → décris ce que tu vois et propose la suite.
@@ -342,6 +381,7 @@ export class AiAssistant {
               address: a.adresse ? String(a.adresse) : undefined,
               date: /^\d{4}-\d{2}-\d{2}$/.test(String(a.date ?? '')) ? String(a.date) : undefined,
               time: /^\d{1,2}:\d{2}$/.test(String(a.heure ?? '')) ? String(a.heure).padStart(5, '0') : undefined,
+              detailed: a.devis_detaille === true,
               lines: lignes.map((l) => ({ code: l.code ? String(l.code).toUpperCase() : undefined, description: l.description ? String(l.description) : undefined, quantity: Number(l.quantite) > 0 ? Number(l.quantite) : 1, unitPrice: typeof l.prix_unitaire === 'number' ? l.prix_unitaire : undefined })),
             },
           };
@@ -403,7 +443,7 @@ export class AiAssistant {
       }
       if (action) {
         this.pending = answers;
-        return action;
+        return normalizeAction(action, this.ctx.clients());
       }
       res = await this.chat!.sendMessage(answers);
     }

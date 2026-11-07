@@ -3,7 +3,7 @@
 // passent par les mêmes fonctions que l'assistant écrit et sont toujours confirmées à l'écran.
 import { getAI, getLiveGenerativeModel, ResponseModality, startAudioConversation, VertexAIBackend, type AudioConversationController, type FunctionCall, type FunctionResponse } from 'firebase/ai';
 import type { Intent, IntentKind } from './assistant';
-import { lookupClients, systemPrompt, toClientEdit, toMessage, TOOLS, type AiClient, type AiDoc, type AiResult, type AiService } from './ai';
+import { lookupClients, normalizeAction, systemPrompt, toClientEdit, toMessage, TOOLS, type AiClient, type AiDoc, type AiResult, type AiService } from './ai';
 import { firebaseApp } from './sync';
 
 const LIVE_MODELS = ['gemini-live-2.5-flash'];
@@ -40,6 +40,7 @@ function toResult(name: string, a: Record<string, unknown>): AiResult | null {
       address: a.adresse ? String(a.adresse) : undefined,
       date: /^\d{4}-\d{2}-\d{2}$/.test(String(a.date ?? '')) ? String(a.date) : undefined,
       time: /^\d{1,2}:\d{2}$/.test(String(a.heure ?? '')) ? String(a.heure).padStart(5, '0') : undefined,
+      detailed: a.devis_detaille === true,
       lines: lignes.map((l) => ({ code: l.code ? String(l.code).toUpperCase() : undefined, description: l.description ? String(l.description) : undefined, quantity: Number(l.quantite) > 0 ? Number(l.quantite) : 1, unitPrice: typeof l.prix_unitaire === 'number' ? l.prix_unitaire : undefined })),
     };
     return { kind: 'doc', text: '', doc };
@@ -112,7 +113,7 @@ export async function startLive(cfg: LiveConfig): Promise<LiveHandle> {
             return { name: c.name, response: { clients: found } };
           }
           const res = toResult(c.name, a);
-          if (res) cfg.onResult(res);
+          if (res) cfg.onResult(normalizeAction(res, cfg.clients()));
           return { name: c.name, response: { resultat: res ? 'Résumé affiché à l’écran; l’utilisateur va le vérifier et confirmer.' : 'Fonction inconnue' } };
         },
       });

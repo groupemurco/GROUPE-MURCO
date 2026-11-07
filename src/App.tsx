@@ -281,6 +281,13 @@ function Shell() {
     setFab(false);
   }, [loc.pathname]);
 
+  // Documents dont le numéro de client avait une erreur d'arrondi: on les remet sur le bon client (une seule fois, sans rien effacer)
+  useEffect(() => {
+    if (!full) return;
+    const ts = [4000, 15000].map((ms) => setTimeout(() => void import('./lib/repair').then((m) => m.repairClientIds()).catch(() => 0), ms));
+    return () => ts.forEach(clearTimeout);
+  }, [full]);
+
   return (
     <>
       <div className="layout">

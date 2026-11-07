@@ -13,6 +13,8 @@ import { buildTodos, snoozeTodo, type Todo } from '../lib/todo';
 import { docTotals, money, todayISO } from '../lib/utils';
 import leaPhoto from '../assets/lea.png';
 import { listen, speechSupported, type Listening } from '../lib/speech';
+import { ClientPicker } from './ClientPicker';
+import { TaxMode } from './TaxMode';
 import { RelanceModal } from './RelanceModal';
 import { errMsg, useToast } from './Toast';
 
@@ -25,7 +27,7 @@ type Msg = { me?: boolean; text: string; message?: AiMessage & { name: string; p
 
 interface ExpDraft { vendor: string; date: string; total: number; category: string; shopAddress: string; from: Place; to: Place; photo?: { data: string; mimeType: string; url: string }; saved?: { summary: string; expenseId: number } }
 
-interface DocDraft { ai: AiDoc; name: string; phone: string; address: string; date: string; time: string; hasDate: boolean; items: LineItem[]; created?: AiCreated }
+interface DocDraft { ai: AiDoc; ask: string; detailed: boolean; tax: { applyTps: boolean; applyTvq: boolean; taxIncluded: boolean }; clientId?: number; name: string; phone: string; address: string; date: string; time: string; hasDate: boolean; items: LineItem[]; created?: AiCreated }
 const DOC_LABEL: Record<AiDoc['type'], string> = { facture: 'Facture', soumission: 'Soumission', job: 'Job à planifier', visite: 'Visite d’estimation' };
 
 const QUICK = [
@@ -123,7 +125,7 @@ export function LeaChat() {
     } else if (r.kind === 'doc') {
       const a = r.doc;
       const c = a.clientId ? clientsRef.current.find((x) => x.id === a.clientId) : undefined;
-      const draft: DocDraft = { ai: a, name: c?.name ?? a.name ?? '', phone: a.phone ?? c?.phone ?? '', address: a.address ?? c?.address ?? '', date: a.date ?? todayISO(), time: a.time ?? '', hasDate: !!a.date, items: aiItems(a, services, c?.lang ?? 'fr') };
+      const draft: DocDraft = { ai: a, ask, detailed: !!a.detailed, tax: { applyTps: !!s.chargeTaxes, applyTvq: !!s.chargeTaxes, taxIncluded: false }, clientId: c?.id, name: c?.name ?? a.name ?? '', phone: a.phone ?? c?.phone ?? '', address: a.address ?? c?.address ?? '', date: a.date ?? todayISO(), time: a.time ?? '', hasDate: !!a.date, items: aiItems(a, services, c?.lang ?? 'fr') };
       spoken = r.text || (a.type === 'facture' ? 'Voici la facture. Corrige ce que tu veux, puis confirme.' : a.type === 'soumission' ? 'Voici la soumission. Corrige ce que tu veux, puis confirme.' : 'Voici ce que je planifie. Corrige ce que tu veux, puis confirme.');
       setMsgs((m) => [...m, { text: spoken, doc: draft }]);
     } else {
@@ -261,7 +263,7 @@ export function LeaChat() {
     if (!d || d.created) return;
     setBusy(true);
     try {
-      const created = await createFromAi({ type: d.ai.type, clientId: d.ai.clientId, name: d.name, phone: d.phone, address: d.address, date: d.date, time: d.time, hasDate: d.hasDate, items: d.items });
+      const created = await createFromAi({ type: d.ai.type, clientId: d.clientId, name: d.name, phone: d.phone, address: d.address, date: d.date, time: d.time, hasDate: d.hasDate, items: d.items, ask: d.ask, detailed: d.detailed, tax: d.tax });
       patchDoc(i, (x) => ({ ...x, created }));
     } catch (e) {
       notify(errMsg(e), 'err');
@@ -433,15 +435,19 @@ export function LeaChat() {
                 )}
                 {m.doc && (
                   <div className="lea-card lea-doc">
-                    <div className="lea-doc-h"><b>{DOC_LABEL[m.doc.ai.type]}</b><span>{m.doc.name || 'Client à choisir'}{!m.doc.ai.clientId && m.doc.name ? ' (nouveau)' : ''}</span></div>
+                    <div className="lea-doc-h"><b>{DOC_LABEL[m.doc.ai.type]}</b>{m.doc.created && <span>{m.doc.name}</span>}</div>
                     {!m.doc.created && (
                       <>
+                        <ClientPicker value={m.doc.clientId ?? 0} onChange={(id) => { const c = clientsRef.current.find((x) => x.id === id); patchDoc(i, (x) => ({ ...x, clientId: id, name: c?.name ?? x.name, address: x.address || c?.address || '', phone: x.phone || c?.phone || '' })); }} />
+                        {!m.doc.clientId && m.doc.name && <div className="small muted">« {m.doc.name} » n’est pas dans tes clients: choisis-le plus haut, ou je le crée comme nouveau client.</div>}
                         {(m.doc.ai.type !== 'facture' && (m.doc.ai.type !== 'soumission' || m.doc.hasDate)) && (
                           <div className="lea-doc-row">
                             <label className="field">Date<input type="date" value={m.doc.date} onChange={(e) => patchDoc(i, (x) => ({ ...x, date: e.target.value, hasDate: true }))} /></label>
                             <label className="field">Heure<input type="time" value={m.doc.time} onChange={(e) => patchDoc(i, (x) => ({ ...x, time: e.target.value }))} /></label>
                           </div>
                         )}
+                        {(m.doc.ai.type === 'soumission' || m.doc.ai.type === 'job') && <label className="check"><input type="checkbox" checked={m.doc.detailed} onChange={(e) => patchDoc(i, (x) => ({ ...x, detailed: e.target.checked }))} /> Devis détaillé (texte complet des travaux et conditions)</label>}
+                        {m.doc.ai.type !== 'visite' && <TaxMode doc={m.doc.tax} onChange={(t) => patchDoc(i, (x) => ({ ...x, tax: { applyTps: t.applyTps, applyTvq: t.applyTvq, taxIncluded: !!t.taxIncluded } }))} />}
                         {m.doc.ai.type === 'soumission' && !m.doc.hasDate && <button type="button" className="btn small" onClick={() => patchDoc(i, (x) => ({ ...x, hasDate: true }))}>+ Planifier la job aussi</button>}
                         <label className="field">Adresse<input value={m.doc.address} onChange={(e) => patchDoc(i, (x) => ({ ...x, address: e.target.value }))} /></label>
                         {m.doc.ai.type !== 'visite' && m.doc.items.map((it, k) => (

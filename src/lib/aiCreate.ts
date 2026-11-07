@@ -1,8 +1,11 @@
 // Léa crée elle-même (dans sa fenêtre) ce que le patron a confirmé: facture, soumission, job ou visite d'estimation.
 import type { AiDoc } from './ai';
 import { blankJob } from './agenda';
+import { findClients } from './fuzzy';
 import { db, getSettings, takeNextNumber, type Doc, type LineItem, type Service } from './db';
-import { addDays, docTotals, todayISO } from './utils';
+import { isDevisEmpty } from './devis';
+import { devisPriceItems, draftPrice, jobTitle, runDevisAi, styleDevis } from './devisFlow';
+import { addDays, docTotals, lineAmount, todayISO } from './utils';
 
 /** Lignes de l'IA → lignes de document (le prix de la liste, sauf si un prix a été dit). */
 export function aiItems(a: AiDoc, services: Service[], lang: 'fr' | 'en' = 'fr'): LineItem[] {
@@ -26,6 +29,9 @@ export interface AiCreateInput {
   time: string;
   hasDate: boolean;
   items: LineItem[];
+  ask?: string; // la demande du patron (sert à rédiger le devis détaillé)
+  detailed?: boolean; // devis détaillé (texte complet des travaux, conditions) au lieu de lignes de prix
+  tax?: { applyTps: boolean; applyTvq: boolean; taxIncluded: boolean };
 }
 export interface AiCreated {
   jobId?: number;
@@ -42,6 +48,10 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
   const st = await getSettings();
   const now = new Date().toISOString();
   let clientId = i.clientId;
+  if (!clientId && i.name.trim()) {
+    const hit = findClients(i.name, await db.clients.toArray());
+    if (hit.length === 1) clientId = hit[0].id;
+  }
   if (!clientId) {
     if (!i.name.trim()) throw new Error('Quel est le nom du client?');
     clientId = await db.clients.add({ name: i.name.trim(), contact: '', email: '', phone: i.phone.trim(), address: i.address.trim(), notes: '', createdAt: now });
@@ -49,9 +59,29 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
   const items = i.items.filter((it) => it.description.trim() || it.unitPrice || it.code);
   const work = items.map((it) => it.description).filter(Boolean).join(' + ');
   const title = work || 'Job';
-  const taxes = { applyTps: st.chargeTaxes, applyTvq: st.chargeTaxes, payments: [] as Doc['payments'] };
-  const total = docTotals({ items, ...taxes }, st).total;
+  const tx = i.tax ?? { applyTps: st.chargeTaxes, applyTvq: st.chargeTaxes, taxIncluded: false };
+  const taxes = { applyTps: tx.applyTps, applyTvq: tx.applyTvq, taxIncluded: tx.taxIncluded, payments: [] as Doc['payments'] };
+  let total = docTotals({ items, ...taxes }, st).total;
   const address = i.address.trim();
+
+  // Soumission: en lignes de prix, ou en devis détaillé rédigé par l'assistant (comme dans l'éditeur)
+  const makeQuote = async (jobDate: string, jobId?: number): Promise<{ id: number; number: string }> => {
+    const date = todayISO();
+    const number = await takeNextNumber('quote');
+    let base: Partial<Doc> = { title, items };
+    if (i.detailed) {
+      const given = items.reduce((a, it) => a + lineAmount(it), 0);
+      const text = [i.ask, address && `Lieu des travaux: ${address}`, work && `Travaux: ${work}`, given > 0 && `Prix: ${given} $ ${tx.taxIncluded ? 'taxes incluses' : 'avant taxes'}`].filter(Boolean).join('. ');
+      const { draft } = await runDevisAi(text, st, { clientId });
+      const devis = isDevisEmpty(draft.devis) ? styleDevis(st) : draft.devis;
+      const { price } = draftPrice({ ...draft, price: given > 0 ? given : draft.price }, tx, st);
+      base = { title: jobTitle(devis) || title, items: devisPriceItems(devis, price), devis, ...(draft.estimate ? { estimate: draft.estimate } : {}) };
+    }
+    const doc = { type: 'quote', number, clientId, date, dueDate: addDays(date, st.quoteValidityDays), jobDate, jobAddress: address, ...base, ...taxes, notes: st.quoteNotes, status: 'draft', ...(jobId ? { jobId } : {}), createdAt: now, updatedAt: now } as Doc;
+    const id = await db.docs.add(doc);
+    total = docTotals(doc, st).total;
+    return { id, number };
+  };
 
   if (i.type === 'facture') {
     const date = todayISO();
@@ -60,10 +90,8 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
     return { invoiceId, number, total, summary: `Facture ${number} créée.` };
   }
   if (i.type === 'soumission' && !i.hasDate) {
-    const date = todayISO();
-    const number = await takeNextNumber('quote');
-    const quoteId = await db.docs.add({ type: 'quote', number, clientId, date, dueDate: addDays(date, st.quoteValidityDays), jobDate: date, jobAddress: address, title, items, ...taxes, notes: st.quoteNotes, status: 'draft', createdAt: now, updatedAt: now });
-    return { quoteId, number, total, summary: `Soumission ${number} créée.` };
+    const q = await makeQuote(todayISO());
+    return { quoteId: q.id, number: q.number, total, summary: `${i.detailed ? 'Devis détaillé' : 'Soumission'} ${q.number} créé${i.detailed ? '' : 'e'}.` };
   }
   const visit = i.type === 'visite';
   const jobId = await db.jobs.add({
@@ -72,15 +100,12 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
   });
   let quoteId: number | undefined;
   let number: string | undefined;
-  if (i.type === 'soumission') {
-    const date = todayISO();
-    number = await takeNextNumber('quote');
-    quoteId = await db.docs.add({ type: 'quote', number, clientId, date, dueDate: addDays(date, st.quoteValidityDays), jobDate: i.date, jobAddress: address, title, items, ...taxes, notes: st.quoteNotes, status: 'draft', jobId, createdAt: now, updatedAt: now });
-  } else if (!visit && items.length) {
-    // job planifiée seule: la soumission qui va avec reste à envoyer
-    number = await takeNextNumber('quote');
-    quoteId = await db.docs.add({ type: 'quote', number, clientId, date: todayISO(), dueDate: addDays(todayISO(), st.quoteValidityDays), jobDate: i.date, jobAddress: address, title, items, ...taxes, notes: st.quoteNotes, status: 'draft', jobId, createdAt: now, updatedAt: now });
+  if (i.type === 'soumission' || (!visit && items.length)) {
+    // une job planifiée garde sa soumission (à envoyer) liée
+    const q = await makeQuote(i.date, jobId);
+    quoteId = q.id;
+    number = q.number;
   }
   const what = visit ? 'Visite d’estimation planifiée' : 'Job planifiée';
-  return { jobId, quoteId, number, total, summary: `${what} ${fmtDate(i.date, i.time)}${number ? `, soumission ${number} créée` : ''}.` };
+  return { jobId, quoteId, number, total, summary: `${what} ${fmtDate(i.date, i.time)}${number ? `, ${i.detailed ? 'devis détaillé' : 'soumission'} ${number} créé${i.detailed ? '' : 'e'}` : ''}.` };
 }
