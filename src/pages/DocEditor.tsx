@@ -194,6 +194,16 @@ export default function DocEditor() {
       };
       if (!toSave.items.length) toSave.items = [emptyLine()];
       if (!toSave.number) toSave.number = await takeNextNumber(toSave.type);
+      // Le lien client est créé en même temps que l'envoi: on garde ce qui est déjà dans la base (lien, vu, signature, avis)
+      if (toSave.id) {
+        const cur = await db.docs.get(toSave.id);
+        if (cur) {
+          toSave.portalToken = cur.portalToken ?? toSave.portalToken;
+          toSave.viewedAt = cur.viewedAt ?? toSave.viewedAt;
+          toSave.signature = cur.signature ?? toSave.signature;
+          toSave.review = cur.review ?? toSave.review;
+        }
+      }
       if (toSave.jobAddress.trim() !== savedAddress.trim()) toSave.jobGeo = undefined;
       const newId = await db.docs.put(toSave);
       let saved = { ...toSave, id: newId };

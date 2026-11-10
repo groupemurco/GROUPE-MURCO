@@ -169,8 +169,14 @@ onSyncedPut((table, v) => {
 
 /** Applique à la copie locale ce que le client a fait sur la page (ouvert, signé, avis, paiement). Retourne ce qui est nouveau. */
 async function applyPortal(p: PortalData): Promise<('viewed' | 'signed')[]> {
-  const local = (await db.docs.filter((d) => d.portalToken === p.token).toArray())[0];
+  const all = await db.docs.toArray();
+  let local = all.find((d) => d.portalToken === p.token) ?? all.find((d) => d.number === p.doc?.number && d.type === p.doc?.kind);
   if (!local?.id) return [];
+  // Lien créé mais oublié par la copie locale (ancienne erreur d'enregistrement): on le rattache
+  if (!local.portalToken) {
+    await db.docs.update(local.id, { portalToken: p.token });
+    local = { ...local, portalToken: p.token };
+  }
   const news: ('viewed' | 'signed')[] = [];
   const patch: Partial<Doc> = {};
   if (p.viewedAt && p.viewedAt !== local.viewedAt) {
