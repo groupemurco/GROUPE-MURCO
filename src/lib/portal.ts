@@ -170,11 +170,13 @@ onSyncedPut((table, v) => {
 /** Applique à la copie locale ce que le client a fait sur la page (ouvert, signé, avis, paiement). Retourne ce qui est nouveau. */
 async function applyPortal(p: PortalData): Promise<('viewed' | 'signed')[]> {
   const all = await db.docs.toArray();
-  let local = all.find((d) => d.portalToken === p.token) ?? all.find((d) => d.number === p.doc?.number && d.type === p.doc?.kind);
-  if (!local?.id) return [];
+  const found = all.find((d) => d.portalToken === p.token) ?? all.find((d) => d.number === p.doc?.number && d.type === p.doc?.kind);
+  if (!found?.id) return [];
+  const localId = found.id;
+  let local: Doc = found;
   // Lien créé mais oublié par la copie locale (ancienne erreur d'enregistrement): on le rattache
   if (!local.portalToken) {
-    await db.docs.update(local.id, { portalToken: p.token });
+    await db.docs.update(localId, { portalToken: p.token });
     local = { ...local, portalToken: p.token };
   }
   const news: ('viewed' | 'signed')[] = [];
@@ -199,7 +201,7 @@ async function applyPortal(p: PortalData): Promise<('viewed' | 'signed')[]> {
     patch.status = t.balance <= 0.004 ? 'paid' : 'partial';
   }
   if (Object.keys(patch).length) {
-    await db.docs.update(local.id, patch);
+    await db.docs.update(localId, patch);
     if (patch.signature) void import('./crm').then((m) => m.syncLeadFromDoc({ ...local, ...patch } as Doc));
   }
   if (news.length) {
