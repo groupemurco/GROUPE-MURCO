@@ -4,6 +4,7 @@ import { Mic,
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { PortalWatcher } from './components/PortalWatcher';
 import { LeaChat } from './components/LeaChat';
 import { duo } from './components/Icons';
 import { CommandPalette } from './components/CommandPalette';
@@ -401,6 +402,7 @@ function Shell() {
         </main>
 
         {full && !editor && !loc.pathname.startsWith('/dicter') && <LeaChat />}
+        {full && <PortalWatcher />}
 
         {update.available && (
           <div className="update-bar">

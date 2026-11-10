@@ -18,6 +18,7 @@ import { docFileName } from '../lib/pdf';
 import { makeDocPdf } from '../lib/docPdf';
 import { isNative, shareFiles, shareLink } from '../lib/native';
 import { publishPortal, reviewLink } from '../lib/portal';
+import { PortalStatus } from '../components/PortalStatus';
 import { profitOfDoc } from '../lib/profit';
 import { syncLeadFromDoc } from '../lib/crm';
 import { useSyncState } from '../lib/sync';
@@ -430,7 +431,7 @@ export default function DocEditor() {
           Avis du client: <strong>{'★'.repeat(doc.review.stars)}{'☆'.repeat(5 - doc.review.stars)}</strong>{doc.review.toGoogle ? ' — redirigé vers Google' : ''}{doc.review.comment ? ` — « ${doc.review.comment} »` : ''}
         </div>
       )}
-      {!doc.signature && doc.viewedAt && <div className="notice info">Le client a ouvert le lien le {new Date(doc.viewedAt).toLocaleString('fr-CA')}.</div>}
+      <PortalStatus doc={doc} />
       {linked?.conv && <div className="notice ok">Convertie en facture <Link to={`/doc/${linked.conv.id}`}>{linked.conv.number}</Link>.</div>}
 
       <div className="card">

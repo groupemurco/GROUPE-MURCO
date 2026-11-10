@@ -167,37 +167,62 @@ onSyncedPut((table, v) => {
   void buildPortalData(v as unknown as Doc, v.portalToken as string, ctx.uid).then((data) => setDoc(doc(ctx.fs, 'portal', v.portalToken as string), data, { merge: true })).catch(() => undefined);
 });
 
+/** Applique à la copie locale ce que le client a fait sur la page (ouvert, signé, avis, paiement). Retourne ce qui est nouveau. */
+async function applyPortal(p: PortalData): Promise<('viewed' | 'signed')[]> {
+  const local = (await db.docs.filter((d) => d.portalToken === p.token).toArray())[0];
+  if (!local?.id) return [];
+  const news: ('viewed' | 'signed')[] = [];
+  const patch: Partial<Doc> = {};
+  if (p.viewedAt && p.viewedAt !== local.viewedAt) {
+    patch.viewedAt = p.viewedAt;
+    if (!local.viewedAt) news.push('viewed');
+  }
+  if (p.review && !local.review) patch.review = p.review;
+  if (p.signature && !local.signature) {
+    patch.signature = p.signature;
+    news.push('signed');
+    if (local.type === 'quote' && (local.status === 'draft' || local.status === 'sent')) patch.status = 'accepted';
+  }
+  // Paiements par carte reçus par Stripe → ajoutés à la facture (une seule fois)
+  const fresh = (p.cardPayments ?? []).filter((cp) => !local.payments.some((x) => x.ref === cp.id));
+  if (fresh.length) {
+    const s = await getSettings();
+    const payments = [...local.payments, ...fresh.map((cp) => ({ date: cp.at.slice(0, 10), amount: cp.amount, method: 'Carte de crédit (en ligne)', ref: cp.id, note: 'Payé en ligne par le client (Stripe)' }))];
+    const t = docTotals({ ...local, payments }, s);
+    patch.payments = payments;
+    patch.status = t.balance <= 0.004 ? 'paid' : 'partial';
+  }
+  if (Object.keys(patch).length) {
+    await db.docs.update(local.id, patch);
+    if (patch.signature) void import('./crm').then((m) => m.syncLeadFromDoc({ ...local, ...patch } as Doc));
+  }
+  if (news.length) {
+    const client = await db.clients.get(local.clientId);
+    for (const kind of news) window.dispatchEvent(new CustomEvent('murco:portal', { detail: { kind, number: local.number, type: local.type, name: client?.name ?? '' } }));
+  }
+  return news;
+}
+
 onSyncAttach(() => {
   const ctx = syncContext();
   if (!ctx) return;
   return onSnapshot(query(collection(ctx.fs, 'portal'), where('owner', '==', ctx.uid)), async (snap) => {
-    for (const ch of snap.docChanges()) {
-      const p = ch.doc.data() as PortalData;
-      const local = (await db.docs.filter((d) => d.portalToken === p.token).toArray())[0];
-      if (!local?.id) continue;
-      const patch: Partial<Doc> = {};
-      if (p.viewedAt && p.viewedAt !== local.viewedAt) patch.viewedAt = p.viewedAt;
-      if (p.review && !local.review) patch.review = p.review;
-      if (p.signature && !local.signature) {
-        patch.signature = p.signature;
-        if (local.type === 'quote' && (local.status === 'draft' || local.status === 'sent')) patch.status = 'accepted';
-      }
-      // Paiements par carte reçus par Stripe → ajoutés à la facture (une seule fois)
-      const fresh = (p.cardPayments ?? []).filter((cp) => !local.payments.some((x) => x.ref === cp.id));
-      if (fresh.length) {
-        const s = await getSettings();
-        const payments = [...local.payments, ...fresh.map((cp) => ({ date: cp.at.slice(0, 10), amount: cp.amount, method: 'Carte de crédit (en ligne)', ref: cp.id, note: 'Payé en ligne par le client (Stripe)' }))];
-        const t = docTotals({ ...local, payments }, s);
-        patch.payments = payments;
-        patch.status = t.balance <= 0.004 ? 'paid' : 'partial';
-      }
-      if (Object.keys(patch).length) {
-        await db.docs.update(local.id, patch);
-        if (patch.signature) void import('./crm').then((m) => m.syncLeadFromDoc({ ...local, ...patch } as Doc));
-      }
-    }
+    for (const ch of snap.docChanges()) await applyPortal(ch.doc.data() as PortalData);
   });
 });
+
+/** Vérifie tout de suite, à la demande: le lien existe-t-il en ligne, le client l'a-t-il ouvert, l'a-t-il signé? */
+export async function checkPortal(docId: number): Promise<{ exists: boolean; viewedAt?: string | null; signed: boolean; news: ('viewed' | 'signed')[] }> {
+  const ctx = syncContext();
+  if (!ctx) throw new Error('Connecte-toi dans Paramètres → Synchronisation pour suivre le lien du client.');
+  const d = await db.docs.get(docId);
+  if (!d?.portalToken) throw new Error('Aucun lien client n’a été créé pour ce document.');
+  const snap = await getDoc(doc(ctx.fs, 'portal', d.portalToken));
+  if (!snap.exists()) return { exists: false, signed: false, news: [] };
+  const data = snap.data() as PortalData;
+  const news = await applyPortal(data);
+  return { exists: true, viewedAt: data.viewedAt, signed: !!data.signature, news };
+}
 
 // ---------- Côté client (page publique, sans compte) ----------
 let viewApp: FirebaseApp | null = null;

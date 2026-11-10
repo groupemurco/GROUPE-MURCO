@@ -336,3 +336,7 @@ label.field input, label.field select, label.field textarea { min-width: 0; max-
 .devis-ed > *, .dv-sec > *, .dv-ai > *, .dv-price > * { min-width: 0; max-width: 100%; }
 .devis-ed textarea, .devis-ed select, .devis-ed input:not([type=checkbox]) { max-width: 100%; }
 .dv-tools .dv-tpl { flex: 1 1 140px; }
+
+.portal-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ps-lines { display: grid; gap: 3px; min-width: 0; }
+.ps-lines span { display: flex; align-items: center; gap: 6px; font-size: 0.92rem; }
