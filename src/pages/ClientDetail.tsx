@@ -1,3 +1,5 @@
+import { EventList } from '../components/Cockpit';
+import { buildActivity } from '../lib/cockpit';
 import { anonymizeClient, exportClientData } from '../lib/privacy';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
@@ -89,6 +91,16 @@ export default function ClientDetail() {
         <div className="card"><div className="label">Km pour ce client</div><div className="value">{km(kms)}</div></div>
         <div className="card"><div className="label">Dépenses liées</div><div className="value">{money(data.expenses.reduce((a, e) => a + e.total, 0))}</div></div>
       </div>
+
+      {(() => {
+        const events = buildActivity(data.docs, data.jobs, [], new Map([[cid, c]]), todayISO(), 12);
+        return events.length > 0 ? (
+          <div className="card ck-feed">
+            <div className="ck-head"><h2>Historique avec ce client</h2></div>
+            <EventList events={events} today={todayISO()} seenAt="9999" />
+          </div>
+        ) : null;
+      })()}
 
       <ClientThread client={c} />
 

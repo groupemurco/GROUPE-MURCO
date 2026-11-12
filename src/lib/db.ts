@@ -72,6 +72,7 @@ export interface Settings extends Synced {
   brandColor?: string; // couleur de l'entreprise (#rrggbb)
   monthlyGoal?: number; // objectif de revenus du mois
   materialBook?: MaterialPrice[]; // catalogue de prix des matériaux (estimateur)
+  activitySeenAt?: string; // fil d'activité: dernière fois que les nouvelles ont été lues
   dashTiles?: string[]; // tuiles cachées du tableau de bord
   wantedPlan?: string; // forfait choisi sur la page de vente
   founderWorkspace?: boolean; // entreprise du créateur de l'app: jamais d'essai (employés compris)

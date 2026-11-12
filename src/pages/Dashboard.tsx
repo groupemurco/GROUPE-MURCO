@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { Cockpit } from '../components/Cockpit';
 import { ConfirmList } from '../components/ConfirmList';
 import { Ico } from '../components/Icons';
 import { SnowAlert } from '../components/SnowAlert';
@@ -17,6 +18,9 @@ import { addDays, docTotals, km, kmAllowance, lineAmount, money, statusClass, st
 
 export const DASH_TILES: { key: string; label: string }[] = [
   { key: 'todo', label: 'À confirmer (le travail de bureau préparé pour toi)' },
+  { key: 'pipeline', label: 'L’argent en route (de l’estimation au paiement)' },
+  { key: 'activity', label: 'Dernières nouvelles (client a ouvert, signé, payé)' },
+  { key: 'insights', label: 'Léa a remarqué (constats sur tes chiffres)' },
   { key: 'kpi', label: 'Chiffres clés (ventes, à recevoir, km, taxes)' },
   { key: 'followups', label: 'À relancer (soumissions sans réponse, factures en retard)' },
   { key: 'today', label: 'Jobs d’aujourd’hui' },
@@ -43,7 +47,7 @@ export default function Dashboard(_props: { onSearch?: () => void }) {
   const show = (k: string) => !hidden.has(k);
 
   const data = useLiveQuery(async () => {
-    const [docs, expenses, trips, clients, jobsToday, leads, punches] = await Promise.all([
+    const [docs, expenses, trips, clients, jobsToday, leads, punches, jobs] = await Promise.all([
       db.docs.toArray(),
       db.expenses.toArray(),
       db.trips.toArray(),
@@ -51,8 +55,9 @@ export default function Dashboard(_props: { onSearch?: () => void }) {
       db.jobs.where('date').equals(today).toArray(),
       db.leads.toArray(),
       db.punches.toArray(),
+      db.jobs.toArray(),
     ]);
-    return { docs, expenses, trips, clients: new Map(clients.map((c) => [c.id!, c])), jobsToday, leads, onSite: punches.filter((p) => !p.end) };
+    return { docs, expenses, trips, clients: new Map(clients.map((c) => [c.id!, c])), jobsToday, leads, jobs, onSite: punches.filter((p) => !p.end) };
   }, [today]);
   if (!data) return <div className="skel-wrap" aria-busy="true"><div className="skel hero" /><div className="skel row" /><div className="skel row" /></div>;
 
@@ -155,6 +160,7 @@ export default function Dashboard(_props: { onSearch?: () => void }) {
 
       <SnowAlert s={s} />
       {show('todo') && <ConfirmList />}
+      <Cockpit docs={data.docs} jobs={data.jobs} leads={data.leads} clients={data.clients} s={s} show={show} />
       {s.setupHidden && missing.length > 0 && <div className="notice">À compléter: <strong>{missing.join(', ')}</strong>. <Link to="/parametres">Paramètres →</Link></div>}
       {show('today') && <div className="grid auto">
         <div className="card">

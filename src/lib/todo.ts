@@ -60,6 +60,10 @@ export async function buildTodos(today = todayISO()): Promise<Todo[]> {
   for (const d of docs) {
     if (d.type !== 'quote' || d.status !== 'sent' || d.signature || d.convertedInvoiceId) continue;
     const since = (d.sentAt ?? d.date).slice(0, 10);
+    if (d.viewedAt && days(d.viewedAt, today) >= 1 && days(since, today) < 7) {
+      out.push({ key: `vue:${d.id}`, kind: 'soumission', doc: d, client: cl.get(d.clientId), amount: docTotals(d, s).total, title: `${name(d.clientId)} a ouvert ta soumission: relance-le`, sub: `${d.number} · ${money(docTotals(d, s).total)} · ouverte ${days(d.viewedAt, today) === 1 ? 'hier' : `il y a ${days(d.viewedAt, today)} jours`}, pas encore signée` });
+      continue;
+    }
     if (days(since, today) < 7) continue;
     out.push({ key: `soumission:${d.id}`, kind: 'soumission', doc: d, client: cl.get(d.clientId), amount: docTotals(d, s).total, title: `Relancer la soumission de ${name(d.clientId)}`, sub: `${d.number} · ${money(docTotals(d, s).total)} · envoyée il y a ${days(since, today)} jours${d.viewedAt ? ' · vue par le client' : ''}` });
   }

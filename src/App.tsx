@@ -2,7 +2,7 @@ import { Mic,
   CalendarDays, Camera, ChevronLeft, Crown, Download, Lock, Inbox, Clock, ClipboardList, FileText, LayoutGrid, Moon, Plus, Search, Sparkles, Sun, SunMoon, Timer, X, Zap, ImagePlus, type LucideIcon,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react';
+import { Suspense, useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { PortalWatcher } from './components/PortalWatcher';
 import { LeaChat } from './components/LeaChat';
@@ -12,42 +12,46 @@ import { SyncBadge } from './components/SyncBadge';
 import { ToastProvider } from './components/Toast';
 import { useSettings } from './lib/hooks';
 import { cycleTheme, getTheme, type ThemePref } from './lib/theme';
-import Accountant from './pages/Accountant';
-import Agenda from './pages/Agenda';
-import ClientDetail from './pages/ClientDetail';
-import Clients from './pages/Clients';
 import Dashboard from './pages/Dashboard';
-import DocEditor from './pages/DocEditor';
-import DocList from './pages/DocList';
-import ExpenseEditor from './pages/ExpenseEditor';
-import Expenses from './pages/Expenses';
-import Express from './pages/Express';
-import VoiceJob from './pages/VoiceJob';
-import QuickQuote from './pages/QuickQuote';
-import Trade from './pages/Trade';
-import Estimator from './pages/Estimator';
-import Orders from './pages/Orders';
-import GmailPage from './pages/GmailPage';
-import JobEditor from './pages/JobEditor';
-import Logbook from './pages/Logbook';
-import Library from './pages/Library';
-import Reports from './pages/Reports';
-import Portal from './pages/Portal';
-import Services from './pages/Services';
-import SettingsPage from './pages/SettingsPage';
-import Leads from './pages/Leads';
-import LeadForm from './pages/LeadForm';
-import Join from './pages/Join';
-import PunchPage from './pages/Punch';
-import Timesheets from './pages/Timesheets';
-import Team from './pages/Team';
-import Projects, { ProjectDetail } from './pages/Projects';
-import Landing from './pages/Landing';
-import Signup from './pages/Signup';
-import Login from './pages/Login';
-import Legal from './pages/Legal';
-import Subscription from './pages/Subscription';
-import PunchApp from './pages/PunchApp';
+import { lazyPage, preloadPages } from './lib/lazyPage';
+const Accountant = lazyPage(() => import('./pages/Accountant'));
+const Agenda = lazyPage(() => import('./pages/Agenda'));
+const ClientDetail = lazyPage(() => import('./pages/ClientDetail'));
+const Clients = lazyPage(() => import('./pages/Clients'));
+const DocEditor = lazyPage(() => import('./pages/DocEditor'));
+const DocList = lazyPage(() => import('./pages/DocList'));
+const ExpenseEditor = lazyPage(() => import('./pages/ExpenseEditor'));
+const Expenses = lazyPage(() => import('./pages/Expenses'));
+const Express = lazyPage(() => import('./pages/Express'));
+const VoiceJob = lazyPage(() => import('./pages/VoiceJob'));
+const QuickQuote = lazyPage(() => import('./pages/QuickQuote'));
+const Trade = lazyPage(() => import('./pages/Trade'));
+const Estimator = lazyPage(() => import('./pages/Estimator'));
+const Orders = lazyPage(() => import('./pages/Orders'));
+const GmailPage = lazyPage(() => import('./pages/GmailPage'));
+const JobEditor = lazyPage(() => import('./pages/JobEditor'));
+const Logbook = lazyPage(() => import('./pages/Logbook'));
+const Library = lazyPage(() => import('./pages/Library'));
+const Reports = lazyPage(() => import('./pages/Reports'));
+const Portal = lazyPage(() => import('./pages/Portal'));
+const Services = lazyPage(() => import('./pages/Services'));
+const SettingsPage = lazyPage(() => import('./pages/SettingsPage'));
+const Leads = lazyPage(() => import('./pages/Leads'));
+const LeadForm = lazyPage(() => import('./pages/LeadForm'));
+const Join = lazyPage(() => import('./pages/Join'));
+const Timesheets = lazyPage(() => import('./pages/Timesheets'));
+const Team = lazyPage(() => import('./pages/Team'));
+const Landing = lazyPage(() => import('./pages/Landing'));
+const Signup = lazyPage(() => import('./pages/Signup'));
+const Login = lazyPage(() => import('./pages/Login'));
+const Legal = lazyPage(() => import('./pages/Legal'));
+const Subscription = lazyPage(() => import('./pages/Subscription'));
+const PunchApp = lazyPage(() => import('./pages/PunchApp'));
+const PunchPage = lazyPage(() => import('./pages/Punch'));
+const Projects = lazyPage(() => import('./pages/Projects'));
+const ProjectDetail = lazyPage(() => import('./pages/Projects').then((m) => ({ default: m.ProjectDetail })));
+// Les pages de tous les jours se chargent en arrière-plan dès que l'accueil est affiché: la navigation reste instantanée
+preloadPages([() => import('./pages/Agenda'), () => import('./pages/DocEditor'), () => import('./pages/DocList'), () => import('./pages/JobEditor'), () => import('./pages/Express'), () => import('./pages/Clients'), () => import('./pages/Expenses')]);
 import { isPunchApp } from './lib/team';
 import { useBilling } from './lib/billing';
 import { PRODUCT } from './brand';
@@ -155,7 +159,7 @@ const PUBLIC = ['/p/', '/demande/', '/rejoindre', '/produit', '/demarrer', '/con
 export default function App() {
   const loc = useLocation();
   // Pages publiques (client, formulaire, invitation, page de vente, inscription): sans le menu de l'app
-  return <ToastProvider>{PUBLIC.some((p) => loc.pathname.startsWith(p)) ? <PublicRoutes /> : <Gate />}</ToastProvider>;
+  return <ToastProvider><Suspense fallback={<Splash />}>{PUBLIC.some((p) => loc.pathname.startsWith(p)) ? <PublicRoutes /> : <Gate />}</Suspense></ToastProvider>;
 }
 
 function PublicRoutes() {
@@ -363,6 +367,7 @@ function Shell() {
           )}
           <div className="page-anim" key={'/' + path.split('/')[1]}>
           {locked ? <Paywall /> : (
+          <Suspense fallback={<div className="skel-wrap" aria-busy="true"><div className="skel hero" /><div className="skel row" /><div className="skel row" /></div>}>
           <Routes>
             <Route path="/" element={full ? <Dashboard onSearch={() => setCmd(true)} /> : <Navigate to={role === 'vendeur' ? '/demandes' : '/pointage'} replace />} />
             <Route path="/demandes" element={<Leads />} />
@@ -397,6 +402,7 @@ function Shell() {
             <Route path="/abonnement" element={<Subscription />} />
             <Route path="*" element={full ? <Dashboard onSearch={() => setCmd(true)} /> : <Navigate to="/agenda" replace />} />
           </Routes>
+          </Suspense>
           )}
           </div>
         </main>
