@@ -559,3 +559,75 @@ Réponds uniquement avec le JSON.`;
   }
   throw last;
 }
+/** Changements demandés à une facture ou une soumission (seulement ce qui change). */
+export interface DocPatch {
+  items?: { code?: string; description?: string; quantity: number; unit?: string; unitPrice?: number }[]; // la liste COMPLÈTE après le changement
+  discount?: number;
+  deposit?: number;
+  taxes?: 'plus' | 'incl' | 'none';
+  title?: string;
+  notes?: string;
+  jobAddress?: string;
+  dueInDays?: number;
+  explication: string;
+}
+
+const numOr = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+
+/** « Mets 6 $ du pied linéaire », « ajoute un rabais de 50 $ », « les taxes en plus »: l'assistant modifie le document. */
+export async function aiEditDoc(opts: { doc: { type: string; number: string; title: string; items: { code?: string; description: string; quantity: number; unit?: string; unitPrice: number }[]; discount?: number; deposit?: number; applyTps: boolean; applyTvq: boolean; taxIncluded?: boolean; notes: string; jobAddress: string; date: string; dueDate: string }; services: { code: string; name: string; unit: string; price: number }[]; text: string; company: string; model?: string }): Promise<DocPatch> {
+  const app = firebaseApp();
+  if (!app) throw new Error('Firebase n’est pas configuré');
+  const ai = getAI(app, { backend: new VertexAIBackend('global') });
+  const d = opts.doc;
+  const taxes = !d.applyTps && !d.applyTvq ? 'none' : d.taxIncluded ? 'incl' : 'plus';
+  const current = { type: d.type === 'invoice' ? 'facture' : 'soumission', numero: d.number, titre: d.title, lignes: d.items.map((i) => ({ code: i.code ?? '', description: i.description, quantite: i.quantity, unite: i.unit ?? '', prix_unitaire: i.unitPrice })), rabais: d.discount ?? 0, depot: d.deposit ?? 0, taxes, notes: d.notes, adresse_travaux: d.jobAddress, date: d.date, echeance: d.dueDate };
+  const prompt = `Tu modifies une ${current.type} pour ${opts.company || 'une entreprise de services'} au Québec. Voici le document actuel (JSON):
+${JSON.stringify(current)}
+Demande de l'entrepreneur: « ${opts.text.slice(0, 2000)} »
+Règles:
+- Applique SEULEMENT ce qui est demandé; garde tout le reste tel quel. N'invente jamais de prix: utilise ceux dits ou ceux de la liste ci-dessous.
+- Si la demande touche les lignes (ajouter, enlever, changer un prix, une quantité, une description), « lignes » contient la liste COMPLÈTE après le changement. Sinon, ne mets pas « lignes ».
+- « 6 $ du pied linéaire pour 75 pieds » = quantite 75, unite « pi lin », prix_unitaire 6.
+- « taxes »: « plus » (taxes ajoutées au prix), « incl » (prix taxes incluses) ou « none ». « rabais » et « depot » en dollars avant taxes. « echeance_jours »: nombre de jours après la date du document.
+- « explication »: une phrase courte en français du Québec qui dit ce que tu as changé (ou pourquoi tu n'as rien changé).
+Liste de prix (code | description | unité | prix):
+${opts.services.slice(0, 80).map((p) => `${p.code} | ${p.name} | ${p.unit} | ${p.price}`).join('\n') || '(aucune)'}
+Format JSON: {"lignes":[{"code":"","description":"","quantite":1,"unite":"","prix_unitaire":0}],"rabais":0,"depot":0,"taxes":"plus","titre":"","notes":"","adresse_travaux":"","echeance_jours":0,"explication":""} (n'inclus que les champs qui changent, plus « explication »). Réponds uniquement avec le JSON.`;
+  let last: unknown;
+  for (const m of opts.model ? [opts.model, ...MODELS] : MODELS) {
+    try {
+      const run = () => getGenerativeModel(ai, { model: m, generationConfig: { temperature: 0.1, responseMimeType: 'application/json', ...thinking() } }, { timeout: AI_TIMEOUT_MS }).generateContent(prompt);
+      const r = await run().catch((e) => {
+        if (!(thinkOff && refusesThinking(e)) || notFound(e) || overQuota(e)) throw e;
+        thinkOff = false;
+        return run();
+      });
+      const o = JSON.parse(r.response.text().trim().replace(/^```(?:json)?\s*|\s*```$/g, '')) as Record<string, unknown>;
+      const patch: DocPatch = { explication: typeof o.explication === 'string' ? o.explication : '' };
+      if (Array.isArray(o.lignes)) {
+        patch.items = (o.lignes as Record<string, unknown>[]).map((l) => ({
+          code: l.code ? String(l.code) : undefined, description: l.description ? String(l.description) : undefined,
+          quantity: numOr(l.quantite) && numOr(l.quantite)! > 0 ? numOr(l.quantite)! : 1, unit: l.unite ? String(l.unite) : undefined, unitPrice: numOr(l.prix_unitaire),
+        }));
+      }
+      if (numOr(o.rabais) !== undefined) patch.discount = Math.max(0, numOr(o.rabais)!);
+      if (numOr(o.depot) !== undefined) patch.deposit = Math.max(0, numOr(o.depot)!);
+      if (o.taxes === 'plus' || o.taxes === 'incl' || o.taxes === 'none') patch.taxes = o.taxes;
+      if (typeof o.titre === 'string' && o.titre.trim()) patch.title = o.titre.trim();
+      if (typeof o.notes === 'string') patch.notes = o.notes;
+      if (typeof o.adresse_travaux === 'string' && o.adresse_travaux.trim()) patch.jobAddress = o.adresse_travaux.trim();
+      if (numOr(o.echeance_jours) !== undefined) patch.dueInDays = Math.max(0, Math.round(numOr(o.echeance_jours)!));
+      // Rien de changé par rapport à l'actuel: on ne touche à rien
+      if (patch.discount === (d.discount ?? 0)) delete patch.discount;
+      if (patch.deposit === (d.deposit ?? 0)) delete patch.deposit;
+      if (patch.taxes === taxes) delete patch.taxes;
+      return patch;
+    } catch (e) {
+      last = e;
+      if (e instanceof SyntaxError) continue;
+      if (!notFound(e) && !overQuota(e)) throw e;
+    }
+  }
+  throw last;
+}

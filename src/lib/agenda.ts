@@ -214,6 +214,22 @@ export async function jobToInvoice(id: number): Promise<number> {
   const j = await db.jobs.get(id);
   if (!j) throw new Error('Job introuvable');
   if (j.docId && (await db.docs.get(j.docId))) return j.docId;
+  const quote = (await db.docs.where('clientId').equals(j.clientId).toArray()).find((d) => d.type === 'quote' && d.jobId === id && !d.convertedInvoiceId && d.status !== 'refused' && d.status !== 'cancelled');
+  if (quote) {
+    // La soumission liée à cette job devient la facture (même prix, même texte); la soumission est marquée « facturée »
+    const { quoteToInvoice } = await import('./assistantActions');
+    const invId = await quoteToInvoice(quote);
+    await db.docs.update(invId, { jobId: id, jobDate: j.date, jobAddress: j.address || quote.jobAddress });
+    await db.jobs.update(id, { docId: invId, status: 'facture', doneAt: j.doneAt ?? new Date().toISOString() });
+    const photos = await db.media.where('jobId').equals(id).toArray();
+    await Promise.all(photos.map((m) => db.media.update(m.id!, { docId: invId })));
+    try {
+      await syncDayRoute(j.date);
+    } catch {
+      /* ignore */
+    }
+    return invId;
+  }
   const s = await getSettings();
   const now = new Date().toISOString();
   const date = todayISO();

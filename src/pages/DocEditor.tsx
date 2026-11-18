@@ -19,6 +19,9 @@ import { makeDocPdf } from '../lib/docPdf';
 import { isNative, shareFiles, shareLink } from '../lib/native';
 import { publishPortal, reviewLink } from '../lib/portal';
 import { PortalStatus } from '../components/PortalStatus';
+import { EstimateLinkNotice } from '../components/EstimateActions';
+import { DocAiEdit } from '../components/DocAiEdit';
+import { pendingEstimate } from '../lib/estimates';
 import { profitOfDoc } from '../lib/profit';
 import { syncLeadFromDoc } from '../lib/crm';
 import { useSyncState } from '../lib/sync';
@@ -206,6 +209,13 @@ export default function DocEditor() {
       }
       if (toSave.jobAddress.trim() !== savedAddress.trim()) toSave.jobGeo = undefined;
       const newId = await db.docs.put(toSave);
+      if (isNew && toSave.type === 'quote' && !toSave.estimateJobId) {
+        const est = await pendingEstimate(toSave.clientId).catch(() => undefined);
+        if (est?.id) {
+          toSave.estimateJobId = est.id;
+          await db.docs.update(newId, { estimateJobId: est.id });
+        }
+      }
       let saved = { ...toSave, id: newId };
       setSavedAddress(saved.jobAddress);
       try {
@@ -442,6 +452,7 @@ export default function DocEditor() {
         </div>
       )}
       <PortalStatus doc={doc} />
+      <EstimateLinkNotice doc={doc} />
       {linked?.conv && <div className="notice ok">Convertie en facture <Link to={`/doc/${linked.conv.id}`}>{linked.conv.number}</Link>.</div>}
 
       <div className="card">
@@ -479,6 +490,7 @@ export default function DocEditor() {
             </div>
           )}
         </div>
+        {!doc.devis && <DocAiEdit doc={doc} services={services} onApply={(patch) => upd(patch)} />}
         {doc.devis
           ? <DevisEditor doc={doc} onChange={upd} initialQuestions={questions} />
           : <LineItems items={doc.items} services={services} onChange={(items) => upd({ items })} lang={L} />}

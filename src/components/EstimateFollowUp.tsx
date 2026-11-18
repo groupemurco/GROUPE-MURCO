@@ -40,9 +40,10 @@ export function EstimateFollowUp({ job, client, onClose }: { job: Job; client?: 
     try {
       if (existing) {
         let jobId: number | undefined;
+        if (!date) await db.docs.update(existing.id!, { estimateJobId: job.id });
         if (date) {
           jobId = await db.jobs.add({ ...blankJob(date, job.clientId), time, address, title: existing.title || what, items: existing.items });
-          await db.docs.update(existing.id!, { jobId, jobDate: date, jobTime: time || undefined });
+          await db.docs.update(existing.id!, { jobId, jobDate: date, jobTime: time || undefined, estimateJobId: job.id });
         }
         setRes({ quoteId: existing.id, jobId, number: existing.number, total: docTotals(existing, s).total, summary: `Soumission ${existing.number} gardée${date ? `, travaux planifiés le ${formatDate(date)}` : ''}.` });
       } else {
@@ -50,6 +51,7 @@ export function EstimateFollowUp({ job, client, onClose }: { job: Job; client?: 
           type: 'soumission', clientId: job.clientId, name: client?.name ?? '', phone: client?.phone ?? '', address, date: date || todayISO(), time, hasDate: !!date,
           items: [{ code: '', description: what.trim() || 'Travaux', quantity: 1, unitPrice: price }], ask: what, detailed, tax, newJob: true,
         });
+        if (r.quoteId) await db.docs.update(r.quoteId, { estimateJobId: job.id });
         setRes(r);
       }
     } catch (e) {

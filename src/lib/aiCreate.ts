@@ -2,6 +2,7 @@
 import type { AiDoc } from './ai';
 import { blankJob } from './agenda';
 import { findClients } from './fuzzy';
+import { pendingEstimate } from './estimates';
 import { db, getSettings, takeNextNumber, type Doc, type Job, type LineItem, type Service } from './db';
 import { isDevisEmpty, parseTarif } from './devis';
 import { devisPriceItems, draftPrice, jobTitle, runDevisAi, styleDevis } from './devisFlow';
@@ -99,7 +100,8 @@ export async function createFromAi(i: AiCreateInput): Promise<AiCreated> {
       const final = { ...devis, priceNote: note };
       base = { title: jobTitle(final) || title, items: devisPriceItems(final, price), devis: final, ...(draft.estimate ? { estimate: draft.estimate } : {}) };
     }
-    const doc = { type: 'quote', number, clientId, date, dueDate: addDays(date, st.quoteValidityDays), jobDate, ...(jobTime ? { jobTime } : {}), jobAddress: address, ...base, ...taxes, notes: st.quoteNotes, status: 'draft', ...(jobId ? { jobId } : {}), createdAt: now, updatedAt: now } as Doc;
+    const est = await pendingEstimate(clientId!);
+    const doc = { type: 'quote', ...(est?.id ? { estimateJobId: est.id } : {}), number, clientId, date, dueDate: addDays(date, st.quoteValidityDays), jobDate, ...(jobTime ? { jobTime } : {}), jobAddress: address, ...base, ...taxes, notes: st.quoteNotes, status: 'draft', ...(jobId ? { jobId } : {}), createdAt: now, updatedAt: now } as Doc;
     const id = await db.docs.add(doc);
     total = docTotals(doc, st).total;
     return { id, number };

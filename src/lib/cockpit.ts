@@ -20,6 +20,9 @@ export function buildPipeline(docs: Doc[], jobs: Job[], clients: Map<number, Cli
   const jobById = new Map(liveJobs.map((j) => [j.id!, j]));
 
   const estimations = liveJobs.filter((j) => j.type === 'estimation' && j.status === 'planifie').sort((a, b) => a.date.localeCompare(b.date));
+  // Estimation faite (45 derniers jours) mais aucune soumission reliée: la soumission est à faire
+  const quoted = new Set(docs.map((d) => d.estimateJobId).filter(Boolean));
+  const toQuote = liveJobs.filter((j) => j.type === 'estimation' && j.status === 'fait' && j.date >= addDays(today, -45) && !quoted.has(j.id)).sort((a, b) => b.date.localeCompare(a.date));
   const sent = docs.filter((d) => d.type === 'quote' && d.status === 'sent' && !d.signature).sort((a, b) => (b.viewedAt ?? '').localeCompare(a.viewedAt ?? '') || b.date.localeCompare(a.date));
   // Acceptée, pas encore facturée, et aucune job planifiée ou faite pour la réaliser
   const toPlan = docs.filter((d) => d.type === 'quote' && (d.status === 'accepted' || !!d.signature) && d.status !== 'refused' && d.status !== 'cancelled' && !d.convertedInvoiceId && !(d.jobId && jobById.has(d.jobId)));
@@ -31,8 +34,9 @@ export function buildPipeline(docs: Doc[], jobs: Job[], clients: Map<number, Cli
 
   return [
     {
-      key: 'estimations', label: 'Estimations à faire', hint: 'Visites prévues chez le client', count: estimations.length, amount: 0,
-      items: estimations.map((j) => ({ id: `j${j.id}`, to: `/job/${j.id}`, title: name(j.clientId), sub: `${j.date}${j.time ? ` à ${j.time}` : ''}${j.address ? ` · ${j.address}` : ''}`, amount: 0 })),
+      key: 'estimations', label: 'Estimations', hint: toQuote.length ? 'Visites à faire ou soumission à préparer' : 'Visites prévues chez le client', count: estimations.length + toQuote.length, amount: 0,
+      alert: toQuote.length ? `${toQuote.length} soumission${toQuote.length > 1 ? 's' : ''} à faire` : undefined,
+      items: [...toQuote.map((j) => ({ id: `q${j.id}`, to: `/job/${j.id}`, title: name(j.clientId), sub: `Estimation faite le ${j.date}: soumission à faire`, amount: 0, hot: true })), ...estimations.map((j) => ({ id: `j${j.id}`, to: `/job/${j.id}`, title: name(j.clientId), sub: `${j.date}${j.time ? ` à ${j.time}` : ''}${j.address ? ` · ${j.address}` : ''}`, amount: 0 }))],
     },
     {
       key: 'envoyees', label: 'Soumissions envoyées', hint: 'En attente de la réponse du client', count: sent.length, amount: sent.reduce((a, d) => a + total(d).total, 0),

@@ -201,6 +201,7 @@ export interface Doc extends Synced {
   status: DocStatus;
   payments: Payment[];
   sourceQuoteId?: number;
+  estimateJobId?: number; // soumission faite à partir de cette estimation (visite à l'agenda)
   convertedInvoiceId?: number;
   tripId?: number;
   jobId?: number; // job de l'agenda d'où vient la facture

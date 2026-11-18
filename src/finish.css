@@ -418,3 +418,18 @@ label.field input, label.field select, label.field textarea { min-width: 0; max-
   .page-head .actions { flex-wrap: wrap; }
   .ag-filters { max-width: 100%; }
 }
+
+/* Estimation → soumission → facture, et assistant de modification d'une facture */
+.est-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.est-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; color: var(--muted); }
+.est-link { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.est-link svg { vertical-align: -2px; margin-right: 4px; }
+.doc-ai { display: grid; gap: 8px; padding: 12px; margin-bottom: 14px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--amber) 40%, var(--line)); background: color-mix(in srgb, var(--amber) 8%, var(--surface)); }
+.doc-ai-row { display: flex; align-items: center; gap: 8px; }
+.doc-ai-ico { flex: none; color: var(--amber); }
+.doc-ai-row input { flex: 1; min-width: 0; }
+.doc-ai-ideas { display: flex; flex-wrap: wrap; gap: 6px; }
+.doc-ai-msg { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 0.93rem; }
+.doc-ai-row { flex-wrap: wrap; }
+.doc-ai-row input { flex: 1 1 180px; }
+.doc-ai-row .btn { flex: 1 1 auto; justify-content: center; }
