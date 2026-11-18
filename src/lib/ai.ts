@@ -1,7 +1,7 @@
 // Assistant IA: Gemini Flash via Firebase AI Logic (pas de clé à gérer, pas de serveur à nous).
 // L'IA comprend la phrase, cherche le client, pose les questions qui manquent, puis PROPOSE:
 // rien n'est créé sans que l'utilisateur confirme dans l'app.
-import { getAI, getGenerativeModel, VertexAIBackend, Schema, type ChatSession, type FunctionCall, type FunctionDeclaration, type Part } from 'firebase/ai';
+import { getAI, getGenerativeModel, ThinkingLevel, VertexAIBackend, Schema, type ChatSession, type FunctionCall, type FunctionDeclaration, type Part } from 'firebase/ai';
 import type { Intent, IntentKind } from './assistant';
 import { devisFromJson, type Devis, type DevisDraft, type PriceRef } from './devis';
 import { findClients } from './fuzzy';
@@ -16,7 +16,16 @@ export { findClients };
 export const MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
 
 /** Délai max d'une réponse de l'IA: sans ça, une connexion bloquée (app mobile) attend sans fin. */
-export const AI_TIMEOUT_MS = 20000;
+export const AI_TIMEOUT_MS = 45000;
+
+/**
+ * Les modèles Gemini « réfléchissent » avant de répondre (20 à 30 secondes pour un devis, selon la console Firebase).
+ * Pour du travail de bureau, une réflexion minimale suffit et la réponse arrive 3 à 5 fois plus vite.
+ * Si un modèle refuse ce réglage, on réessaie sans (et on s'en souvient pour la session).
+ */
+let thinkOff = true;
+const thinking = () => (thinkOff ? { thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL } } : {});
+const refusesThinking = (e: unknown) => /thinking|thought|INVALID_ARGUMENT|\b400\b/i.test(`${(e as { code?: string })?.code ?? ''} ${e instanceof Error ? e.message : e}`);
 
 export interface AiClient { id?: number; name: string; address: string; phone: string }
 export interface AiService { code: string; name: string; unit: string; price: number }
@@ -310,7 +319,7 @@ export class AiAssistant {
       model,
       systemInstruction: systemPrompt(this.ctx.company, this.ctx.services, this.ctx.today),
       tools: [{ functionDeclarations: TOOLS }],
-      generationConfig: { temperature: 0.2 },
+      generationConfig: { temperature: 0.2, ...thinking() },
     }, { timeout: AI_TIMEOUT_MS });
     this.model = model;
     this.chat = gm.startChat();
@@ -327,6 +336,18 @@ export class AiAssistant {
         } catch (e) {
           last = e;
           this.chat = null;
+          if (thinkOff && refusesThinking(e) && !notFound(e) && !overQuota(e)) {
+            thinkOff = false; // ce modèle n'accepte pas le réglage: on réessaie normalement
+            try {
+              this.open(m);
+              return await this.chat!.sendMessage(parts);
+            } catch (e2) {
+              last = e2;
+              this.chat = null;
+              if (!notFound(e2) && !overQuota(e2)) throw e2;
+              continue;
+            }
+          }
           if (!notFound(e) && !overQuota(e)) throw e;
         }
       }
@@ -522,7 +543,12 @@ Réponds uniquement avec le JSON.`;
   let last: unknown;
   for (const m of opts.model ? [opts.model, ...MODELS] : MODELS) {
     try {
-      const r = await getGenerativeModel(ai, { model: m, generationConfig: { temperature: 0.3, responseMimeType: 'application/json' } }, { timeout: AI_TIMEOUT_MS * 2 }).generateContent(prompt);
+      const run = () => getGenerativeModel(ai, { model: m, generationConfig: { temperature: 0.3, responseMimeType: 'application/json', ...thinking() } }, { timeout: AI_TIMEOUT_MS * 2 }).generateContent(prompt);
+      const r = await run().catch((e) => {
+        if (!(thinkOff && refusesThinking(e)) || notFound(e) || overQuota(e)) throw e;
+        thinkOff = false;
+        return run();
+      });
       const txt = r.response.text().trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
       return devisFromJson(JSON.parse(txt), opts.current ?? opts.style, opts.prices);
     } catch (e) {
