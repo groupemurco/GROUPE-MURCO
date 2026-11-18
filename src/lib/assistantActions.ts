@@ -41,6 +41,7 @@ export async function quoteToInvoice(q: Doc): Promise<number> {
     status: 'draft', payments: [], sourceQuoteId: q.id, signature: undefined, portalToken: undefined, viewedAt: undefined, sentAt: undefined, review: undefined, createdAt: now, updatedAt: now,
   });
   await db.docs.update(q.id!, { convertedInvoiceId: invId, status: q.status === 'draft' || q.status === 'sent' ? 'accepted' : q.status });
+  if (q.jobId) await db.jobs.update(q.jobId, { docId: invId });
   return invId;
 }
 

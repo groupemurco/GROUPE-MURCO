@@ -453,6 +453,12 @@ export default function DocEditor() {
       )}
       <PortalStatus doc={doc} />
       <EstimateLinkNotice doc={doc} />
+      {doc.type === 'quote' && doc.id && !doc.convertedInvoiceId && !doc.signature && doc.status !== 'refused' && doc.status !== 'cancelled' && (
+        <div className="notice quote-bill">
+          <span>{doc.status === 'accepted' ? 'Le client a accepté.' : 'Le client a dit oui?'} Transforme cette soumission en facture en un clic.</span>
+          <button type="button" className="btn accent" onClick={() => void convertToInvoice()}>Transformer en facture</button>
+        </div>
+      )}
       {linked?.conv && <div className="notice ok">Convertie en facture <Link to={`/doc/${linked.conv.id}`}>{linked.conv.number}</Link>.</div>}
 
       <div className="card">
@@ -470,6 +476,15 @@ export default function DocEditor() {
               <label className="field">Heure prévue<input type="time" value={doc.jobTime ?? ''} onChange={(e) => upd({ jobTime: e.target.value })} /></label>
             </>
           )}
+          <div className="field full">
+            Autres journées de travail <span className="small muted">— si les travaux se font sur plusieurs jours</span>
+            <div className="chips">
+              {(doc.extraDates ?? []).map((x) => (
+                <span key={x} className="chip-btn on">{formatDate(x)} <button type="button" className="icon-btn" aria-label={`Retirer ${x}`} onClick={() => upd({ extraDates: (doc.extraDates ?? []).filter((y) => y !== x) })}>×</button></span>
+              ))}
+              <input type="date" aria-label="Ajouter une journée" value="" onChange={(e) => { const v = e.target.value; if (v && v !== doc.jobDate && !(doc.extraDates ?? []).includes(v)) upd({ extraDates: [...(doc.extraDates ?? []), v].sort(), jobDate: doc.jobDate || v }); }} style={{ width: 'auto' }} />
+            </div>
+          </div>
           <label className="field full">
             Lieu des travaux
             <div className="row" style={{ flexWrap: 'nowrap' }}>

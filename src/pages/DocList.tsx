@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Banknote, Bell, ChevronRight, Plus, Sparkles } from 'lucide-react';
+import { Banknote, Bell, ChevronRight, Plus, Receipt, Sparkles } from 'lucide-react';
+import { quoteToInvoice } from '../lib/assistantActions';
 import { CountUp } from '../components/CountUp';
 import { PageHero, Ring } from '../components/PageHero';
 import { celebrate } from '../lib/feel';
@@ -8,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { PreviewButton } from '../components/DocPreview';
 import { RelanceModal } from '../components/RelanceModal';
 import { SwipeRow } from '../components/SwipeRow';
-import { useToast } from '../components/Toast';
+import { errMsg, useToast } from '../components/Toast';
 import { db, type Doc, type DocType } from '../lib/db';
 import { PaymentModal } from './DocEditor';
 import { useSettings } from '../lib/hooks';
@@ -38,6 +39,16 @@ export default function DocList({ type }: { type: DocType }) {
   const [q, setQ] = useState('');
   const notify = useToast();
   const [pay, setPay] = useState<Doc | null>(null);
+  const convertible = (d: Doc) => d.type === 'quote' && !d.convertedInvoiceId && d.status !== 'refused' && d.status !== 'cancelled';
+  const toInvoice = async (d: Doc) => {
+    try {
+      const id = await quoteToInvoice(d);
+      notify('Facture créée à partir de la soumission');
+      nav(`/doc/${id}`);
+    } catch (e) {
+      notify(errMsg(e), 'err');
+    }
+  };
   const [relance, setRelance] = useState<Doc | null>(null);
   const data = useLiveQuery(async () => {
     const [docs, clients] = await Promise.all([db.docs.where('type').equals(type).toArray(), db.clients.toArray()]);
@@ -141,7 +152,7 @@ export default function DocList({ type }: { type: DocType }) {
               const late = open && d.dueDate < today;
               return (
                 <SwipeRow key={d.id} onTap={() => nav(`/doc/${d.id}`)}
-                  left={isInvoice && open ? { label: 'Payée', icon: <Banknote size={18} />, tone: 'green', run: () => setPay(d) } : undefined}
+                  left={isInvoice && open ? { label: 'Payée', icon: <Banknote size={18} />, tone: 'green', run: () => setPay(d) } : convertible(d) ? { label: 'Facture', icon: <Receipt size={18} />, tone: 'green', run: () => void toInvoice(d) } : undefined}
                   right={open ? { label: 'Relancer', icon: <Bell size={18} />, tone: 'amber', run: () => setRelance(d) } : undefined}>
                   <div className={`doc-card ${late ? 'late' : ''}`}>
                     <span className="cp-avatar">{(c?.name ?? '?').slice(0, 1).toUpperCase()}</span>
@@ -152,6 +163,7 @@ export default function DocList({ type }: { type: DocType }) {
                         <span className={statusClass(d)}>{statusLabel(d)}</span>
                         {late && <span className="badge red">En retard</span>}
                         <PreviewButton doc={d} client={c} compact />
+                        {convertible(d) && <button type="button" className="btn small" onClick={(e) => { e.stopPropagation(); void toInvoice(d); }}><Receipt size={13} /> Facture</button>}
                       </span>
                     </span>
                     <span className="doc-amt">
@@ -195,7 +207,10 @@ export default function DocList({ type }: { type: DocType }) {
                         {money(tt.total)}
                         {isInvoice && tt.paid > 0 && tt.balance > 0 && <div className="small muted">solde {money(tt.balance)}</div>}
                       </td>
-                      <td style={{ width: 1 }}><PreviewButton doc={d} client={data.clients.get(d.clientId)} /></td>
+                      <td style={{ width: 1, whiteSpace: 'nowrap' }}>
+                        <PreviewButton doc={d} client={data.clients.get(d.clientId)} />
+                        {convertible(d) && <button type="button" className="btn small" onClick={(e) => { e.stopPropagation(); void toInvoice(d); }} style={{ marginLeft: 6 }}><Receipt size={13} /> Facture</button>}
+                      </td>
                     </tr>
                   );
                 })}

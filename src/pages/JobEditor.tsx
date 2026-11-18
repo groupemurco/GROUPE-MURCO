@@ -6,6 +6,7 @@ import { AddressInput } from '../components/AddressInput';
 import { ClientPicker } from '../components/ClientPicker';
 import { JobDoneSheet } from '../components/JobDoneSheet';
 import { EstimateActions } from '../components/EstimateActions';
+import { WorkDays } from '../components/WorkDays';
 import { LineItems } from '../components/LineItems';
 import { MediaGallery } from '../components/MediaGallery';
 import { ReminderModal } from '../components/ReminderModal';
@@ -279,6 +280,7 @@ export default function JobEditor() {
         {full && <button className="btn danger" onClick={remove}><Trash2 size={16} /> Supprimer</button>}
       </div>
 
+      {full && j.id && j.type !== 'estimation' && <WorkDays job={j} />}
       {j.id && j.type === 'estimation' && j.status !== 'planifie' && <div className="card"><EstimateActions job={j} client={client} /></div>}
       {doneSheet !== null && j.id && <JobDoneSheet job={j} client={client} canBill={full} routeKm={doneSheet} onClose={() => setDoneSheet(null)} />}
       {remind && j.id && <ReminderModal job={j} client={client} onClose={() => setRemind(false)} />}

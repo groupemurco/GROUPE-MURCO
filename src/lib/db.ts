@@ -201,6 +201,7 @@ export interface Doc extends Synced {
   status: DocStatus;
   payments: Payment[];
   sourceQuoteId?: number;
+  extraDates?: string[]; // autres journées de travail (en plus de jobDate)
   estimateJobId?: number; // soumission faite à partir de cette estimation (visite à l'agenda)
   convertedInvoiceId?: number;
   tripId?: number;
@@ -229,6 +230,7 @@ export type Recurrence = 'none' | 'weekly' | 'monthly' | 'yearly' | 'months';
 /** Job à l'agenda (travaux planifiés). */
 export interface Job extends Synced {
   id?: number;
+  groupId?: number; // job sur plusieurs journées: id de la première journée (toutes les journées partagent ce numéro)
   date: string; // YYYY-MM-DD
   time: string; // HH:MM ('' = dans la journée)
   durationMin: number;

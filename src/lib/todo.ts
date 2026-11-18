@@ -1,5 +1,6 @@
 import { db, getSettings, saveSettings, type Client, type Doc, type Job, type Lead, type Punch } from './db';
 import { addDays, docTotals, money, todayISO } from './utils';
+import { readyToBill } from './workdays';
 
 // Liste « À confirmer »: l'app prépare le travail de bureau, tu confirmes d'un toucher.
 
@@ -43,9 +44,10 @@ export async function buildTodos(today = todayISO()): Promise<Todo[]> {
     if (!c?.phone && !c?.email) continue;
     out.push({ key: `rappel:${j.id}`, kind: 'rappel', job: j, client: c, title: `Rappeler à ${c.name} sa job ${j.date === today ? 'd’aujourd’hui' : 'de demain'}${j.time ? ` à ${hhmm(j.time)}` : ''}`, sub: j.title || 'Job' });
   }
-  // 2. Jobs faites pas encore facturées
-  for (const j of jobs) {
-    if (j.status !== 'fait' || j.type === 'estimation' || (j.docId && docs.some((d) => d.id === j.docId))) continue;
+  // 2. Jobs faites pas encore facturées (une job sur plusieurs journées: une seule fois, quand toutes les journées sont faites)
+  const allJobs = await db.jobs.toArray();
+  const doneJobs = jobs.filter((j) => j.status === 'fait' && j.type !== 'estimation' && !(j.docId && docs.some((d) => d.id === j.docId)));
+  for (const j of readyToBill(doneJobs, allJobs)) {
     const amt = j.items.reduce((a, it) => a + (it.quantity || 0) * (it.unitPrice || 0), 0);
     out.push({ key: `facturer:${j.id}`, kind: 'facturer', job: j, client: cl.get(j.clientId), amount: amt, title: `Facturer la job de ${name(j.clientId)}`, sub: `${j.title || 'Job'} · faite le ${j.date}${amt ? ` · ${money(amt)}` : ''}` });
   }

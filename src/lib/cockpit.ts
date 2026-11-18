@@ -2,6 +2,7 @@
 // et ce que les chiffres disent (constats). Tout est calculé à partir des données déjà dans l'app.
 import type { Client, Doc, Job, Lead, Settings } from './db';
 import { addDays, docTotals, lineAmount, money } from './utils';
+import { readyToBill } from './workdays';
 
 type Tax = Pick<Settings, 'tpsRate' | 'tvqRate'>;
 const daysBetween = (from: string, to: string) => Math.round((new Date(to.slice(0, 10) + 'T12:00:00').getTime() - new Date(from.slice(0, 10) + 'T12:00:00').getTime()) / 86400000);
@@ -27,7 +28,7 @@ export function buildPipeline(docs: Doc[], jobs: Job[], clients: Map<number, Cli
   // Acceptée, pas encore facturée, et aucune job planifiée ou faite pour la réaliser
   const toPlan = docs.filter((d) => d.type === 'quote' && (d.status === 'accepted' || !!d.signature) && d.status !== 'refused' && d.status !== 'cancelled' && !d.convertedInvoiceId && !(d.jobId && jobById.has(d.jobId)));
   const invoicedJobs = new Set(docs.filter((d) => d.type === 'invoice' && d.jobId).map((d) => d.jobId!));
-  const toBill = liveJobs.filter((j) => j.status === 'fait' && j.type !== 'estimation' && !invoicedJobs.has(j.id!) && !(j.docId && docs.some((d) => d.id === j.docId && d.type === 'invoice'))).sort((a, b) => a.date.localeCompare(b.date));
+  const toBill = readyToBill(liveJobs.filter((j) => j.status === 'fait' && j.type !== 'estimation' && !invoicedJobs.has(j.id!) && !(j.docId && docs.some((d) => d.id === j.docId && d.type === 'invoice'))), liveJobs).sort((a, b) => a.date.localeCompare(b.date));
   const unpaid = docs.filter((d) => d.type === 'invoice' && (d.status === 'sent' || d.status === 'partial') && total(d).balance > 0.004).sort((a, b) => (a.dueDate || a.date).localeCompare(b.dueDate || b.date));
   const late = unpaid.filter((d) => d.dueDate && d.dueDate < today);
   const seen = sent.filter((d) => d.viewedAt).length;

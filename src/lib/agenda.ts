@@ -1,3 +1,4 @@
+import { workDays } from './workdays';
 import { db, getSettings, takeNextNumber, type Client, type Doc, type GeoPoint, type Job, type Trip } from './db';
 import { drivingDistance, geocode, haversineKm } from './geo';
 import { ensureHomeGeo } from './trips';
@@ -214,13 +215,18 @@ export async function jobToInvoice(id: number): Promise<number> {
   const j = await db.jobs.get(id);
   if (!j) throw new Error('Job introuvable');
   if (j.docId && (await db.docs.get(j.docId))) return j.docId;
-  const quote = (await db.docs.where('clientId').equals(j.clientId).toArray()).find((d) => d.type === 'quote' && d.jobId === id && !d.convertedInvoiceId && d.status !== 'refused' && d.status !== 'cancelled');
+  // Job sur plusieurs journées: une seule facture pour toutes les journées
+  const days = await workDays(j);
+  const ids = new Set(days.map((x) => x.id!));
+  for (const x of days) if (x.docId && (await db.docs.get(x.docId))) return x.docId;
+  const dates = [...new Set(days.map((x) => x.date))];
+  const quote = (await db.docs.where('clientId').equals(j.clientId).toArray()).find((d) => d.type === 'quote' && d.jobId !== undefined && ids.has(d.jobId) && !d.convertedInvoiceId && d.status !== 'refused' && d.status !== 'cancelled');
   if (quote) {
     // La soumission liée à cette job devient la facture (même prix, même texte); la soumission est marquée « facturée »
     const { quoteToInvoice } = await import('./assistantActions');
     const invId = await quoteToInvoice(quote);
-    await db.docs.update(invId, { jobId: id, jobDate: j.date, jobAddress: j.address || quote.jobAddress });
-    await db.jobs.update(id, { docId: invId, status: 'facture', doneAt: j.doneAt ?? new Date().toISOString() });
+    await db.docs.update(invId, { jobId: id, jobDate: dates[0] ?? j.date, ...(dates.length > 1 ? { extraDates: dates.slice(1) } : {}), jobAddress: j.address || quote.jobAddress });
+    for (const x of days.length ? days : [j]) await db.jobs.update(x.id!, { docId: invId, status: 'facture', doneAt: x.doneAt ?? new Date().toISOString() });
     const photos = await db.media.where('jobId').equals(id).toArray();
     await Promise.all(photos.map((m) => db.media.update(m.id!, { docId: invId })));
     try {
@@ -250,11 +256,12 @@ export async function jobToInvoice(id: number): Promise<number> {
     status: 'draft',
     payments: [],
     jobId: id,
+    ...(dates.length > 1 ? { jobDate: dates[0], extraDates: dates.slice(1) } : {}),
     createdAt: now,
     updatedAt: now,
   };
   const docId = await db.docs.add(doc);
-  await db.jobs.update(id, { docId, status: 'facture', doneAt: j.doneAt ?? now });
+  for (const x of days.length ? days : [j]) await db.jobs.update(x.id!, { docId, status: 'facture', doneAt: x.doneAt ?? now });
   // Les photos du job suivent la facture
   const media = await db.media.where('jobId').equals(id).toArray();
   await Promise.all(media.map((m) => db.media.update(m.id!, { docId })));

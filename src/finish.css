@@ -433,3 +433,14 @@ label.field input, label.field select, label.field textarea { min-width: 0; max-
 .doc-ai-row { flex-wrap: wrap; }
 .doc-ai-row input { flex: 1 1 180px; }
 .doc-ai-row .btn { flex: 1 1 auto; justify-content: center; }
+
+.quote-bill { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.quote-bill .btn { flex: none; }
+
+/* Job sur plusieurs journées */
+.wd-list { display: grid; gap: 6px; margin-bottom: 12px; }
+.wd-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); }
+.wd-row.me { border-color: var(--amber); }
+.wd-row a { flex: 1; min-width: 0; color: var(--ink); font-weight: 600; }
+.wd-add { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: end; }
+.wd-add .btn { grid-column: 1 / -1; justify-content: center; }
