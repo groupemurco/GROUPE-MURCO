@@ -21,6 +21,7 @@ import { publishPortal, reviewLink } from '../lib/portal';
 import { PortalStatus } from '../components/PortalStatus';
 import { EstimateLinkNotice } from '../components/EstimateActions';
 import { DocAiEdit } from '../components/DocAiEdit';
+import { WorkDatesField } from '../components/WorkDatesField';
 import { pendingEstimate } from '../lib/estimates';
 import { profitOfDoc } from '../lib/profit';
 import { syncLeadFromDoc } from '../lib/crm';
@@ -470,21 +471,8 @@ export default function DocEditor() {
           <label className="field full">Description de la job (sert aussi de raison dans le journal de bord)
             <input value={doc.title} placeholder="ex.: Installation de céramique salle de bain" onChange={(e) => upd({ title: e.target.value })} />
           </label>
-          {!isInvoice && (
-            <>
-              <label className="field">Date des travaux prévue (si elle est connue)<input type="date" value={doc.jobDate} onChange={(e) => upd({ jobDate: e.target.value })} /></label>
-              <label className="field">Heure prévue<input type="time" value={doc.jobTime ?? ''} onChange={(e) => upd({ jobTime: e.target.value })} /></label>
-            </>
-          )}
-          <div className="field full">
-            Autres journées de travail <span className="small muted">— si les travaux se font sur plusieurs jours</span>
-            <div className="chips">
-              {(doc.extraDates ?? []).map((x) => (
-                <span key={x} className="chip-btn on">{formatDate(x)} <button type="button" className="icon-btn" aria-label={`Retirer ${x}`} onClick={() => upd({ extraDates: (doc.extraDates ?? []).filter((y) => y !== x) })}>×</button></span>
-              ))}
-              <input type="date" aria-label="Ajouter une journée" value="" onChange={(e) => { const v = e.target.value; if (v && v !== doc.jobDate && !(doc.extraDates ?? []).includes(v)) upd({ extraDates: [...(doc.extraDates ?? []), v].sort(), jobDate: doc.jobDate || v }); }} style={{ width: 'auto' }} />
-            </div>
-          </div>
+          <WorkDatesField doc={doc} onChange={upd} />
+          {!isInvoice && <label className="field">Heure prévue<input type="time" value={doc.jobTime ?? ''} onChange={(e) => upd({ jobTime: e.target.value })} /></label>}
           <label className="field full">
             Lieu des travaux
             <div className="row" style={{ flexWrap: 'nowrap' }}>
@@ -555,7 +543,7 @@ export default function DocEditor() {
         <div className="form-grid" style={{ marginTop: 12 }}>
           <label className="field">Date<input type="date" value={doc.date} onChange={(e) => changeDate(e.target.value)} /></label>
           <label className="field">{isInvoice ? 'Échéance' : 'Valide jusqu’au'}<input type="date" value={doc.dueDate} onChange={(e) => upd({ dueDate: e.target.value })} /></label>
-          <label className="field">Date des travaux<input type="date" value={doc.jobDate} onChange={(e) => upd({ jobDate: e.target.value })} /></label>
+          <WorkDatesField doc={doc} onChange={upd} />
           <label className="field">Projet
             <select value={doc.projectId ?? ''} onChange={(e) => upd({ projectId: e.target.value ? Number(e.target.value) : undefined })}>
               <option value="">—</option>
