@@ -300,8 +300,14 @@ export function buildDocPdf(doc: Doc, client: Client | undefined, s: Settings, p
   ];
   const workDates = [...new Set([doc.jobDate, ...(doc.extraDates ?? [])].filter(Boolean))].sort();
   if (workDates.length > 1) {
-    const list = workDates.map((x) => fd(x));
-    meta.push([L === 'en' ? 'Work dates' : 'Dates des travaux', `${list.slice(0, -1).join(', ')}${L === 'en' ? ' and ' : ' et '}${list[list.length - 1]}`]);
+    const and = L === 'en' ? ' and ' : ' et ';
+    const joinAnd = (list: string[]) => (list.length > 1 ? `${list.slice(0, -1).join(', ')}${and}${list[list.length - 1]}` : list[0]);
+    const sameMonth = workDates.every((x) => x.slice(0, 7) === workDates[0].slice(0, 7));
+    // même mois: « 10, 13 et 16 novembre 2026 »; sinon chaque date en entier
+    const label = sameMonth
+      ? `${joinAnd(workDates.map((x) => String(Number(x.slice(8)))))} ${fd(workDates[0]).replace(/^\S+\s*/, '').replace(/^1er\s*/, '')}`.replace(/\s+/g, ' ')
+      : joinAnd(workDates.map((x) => fd(x)));
+    meta.push([L === 'en' ? 'Work dates' : 'Dates des travaux', label]);
   } else if (doc.jobDate) meta.push([T.jobDate, `${fd(doc.jobDate)}${doc.jobTime ? (L === 'en' ? `, around ${doc.jobTime}` : `, vers ${Number(doc.jobTime.slice(0, 2))} h${doc.jobTime.slice(3) !== '00' ? ` ${doc.jobTime.slice(3)}` : ''}`) : ''}`]);
   const clientLines = [client?.name, client?.contact, client?.address, client?.phone, client?.email].filter(Boolean) as string[];
   pdf.setFontSize(9.5);
@@ -312,7 +318,16 @@ export function buildDocPdf(doc: Doc, client: Client | undefined, s: Settings, p
   const wrappedJob = doc.jobAddress ? (pdf.splitTextToSize(t(doc.jobAddress), 88) as string[]) : [];
   let leftH = 11 + wrappedClient.reduce((a, w) => a + w.length * 4.5, 0);
   if (wrappedJob.length) leftH += 6.5 + wrappedJob.length * 4.5;
-  const boxH = Math.max(leftH, 11 + meta.length * 5.5) + 0.5;
+  // Case de droite: chaque valeur courte reste sur la ligne de son titre; une valeur longue passe dessous (plusieurs lignes)
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(9);
+  const metaRows = meta.map(([k, v]) => {
+    const wide = pdf.getTextWidth(t(v)) + pdf.getTextWidth(t(k)) + 4 > 58;
+    const lines = wide ? (pdf.splitTextToSize(t(v), 58) as string[]) : [t(v)];
+    return { k, lines, wide, h: wide ? 5 + lines.length * 4.4 + 1.2 : 5.5 };
+  });
+  const metaH = 11 + metaRows.reduce((a, r) => a + r.h, 0);
+  const boxH = Math.max(leftH, metaH) + 0.5;
   const top = 49;
   pdf.setFillColor(245, 245, 243);
   pdf.rect(15, top, 100, boxH, 'F');
@@ -344,15 +359,18 @@ export function buildDocPdf(doc: Doc, client: Client | undefined, s: Settings, p
     pdf.setTextColor(40);
     pdf.text(wrappedJob, 20, y);
   }
-  meta.forEach(([k, v], i) => {
-    const my = top + 11 + i * 5.5;
+  let my = top + 11;
+  metaRows.forEach((r) => {
     pdf.setFontSize(9);
     pdf.setTextColor(90);
     pdf.setFont('helvetica', 'normal');
-    pdf.text(t(k), W - 75, my);
+    pdf.text(t(r.k), W - 75, my);
     pdf.setTextColor(30);
     pdf.setFont('helvetica', 'bold');
-    pdf.text(t(v), W - 18, my, { align: 'right' });
+    if (r.wide) {
+      r.lines.forEach((ln, n) => pdf.text(ln, W - 18, my + 4.6 + n * 4.4, { align: 'right' }));
+    } else pdf.text(r.lines[0], W - 18, my, { align: 'right' });
+    my += r.h;
   });
   y = top + boxH + 8;
 
