@@ -29,3 +29,40 @@ export function useAppUpdate(): { available: boolean; dismiss: () => void } {
     },
   };
 }
+
+/**
+ * Version du site publiée pendant que l'app est ouverte (navigateur ou app installée): on le dit, avec un bouton pour recharger.
+ * Sans ça, une page ouverte depuis la veille garde l'ancien code (ex.: un vieux PDF) jusqu'au prochain rechargement.
+ */
+export function useWebUpdate(): { ready: boolean; reload: () => void; later: () => void } {
+  const [remote, setRemote] = useState<string | null>(null);
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    if (__APP_VERSION__.time === 0) return;
+    const check = () =>
+      fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((v: { sha: string; time: number } | null) => {
+          if (v && v.sha !== __APP_VERSION__.sha && v.time > __APP_VERSION__.time) setRemote(v.sha);
+        })
+        .catch(() => undefined);
+    void check();
+    const t = setInterval(check, 90_000);
+    const onVisible = () => document.visibilityState === 'visible' && void check();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+  return {
+    ready: !!remote && !hidden,
+    reload: () => {
+      try {
+        sessionStorage.removeItem('murco.reloaded');
+      } catch { /* stockage indisponible */ }
+      location.reload();
+    },
+    later: () => setHidden(true),
+  };
+}

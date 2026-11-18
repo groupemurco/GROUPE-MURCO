@@ -59,7 +59,7 @@ import { CompanyMark } from './components/CompanyMark';
 import { isBooted, onBooted } from './lib/templates';
 import { useSyncState, type Role } from './lib/sync';
 import { db } from './lib/db';
-import { APK_URL, useAppUpdate } from './lib/update';
+import { APK_URL, useAppUpdate, useWebUpdate } from './lib/update';
 import { isNative } from './lib/native';
 import { applyAccent } from './lib/accent';
 
@@ -233,6 +233,7 @@ function Shell() {
   const [theme, setThemeState] = useState<ThemePref>(getTheme());
   const ThemeIcon = THEME_ICON[theme];
   const update = useAppUpdate();
+  const web = useWebUpdate();
   const billing = useBilling();
   // Essai terminé: lecture et exportation seulement (pas de nouvelles factures, jobs, reçus)
   const locked = !billing.canWrite && (isEditorRoute(loc.pathname) || loc.pathname.startsWith('/express'));
@@ -410,6 +411,14 @@ function Shell() {
         {full && !editor && !loc.pathname.startsWith('/dicter') && <LeaChat />}
         {full && <PortalWatcher />}
 
+        {web.ready && !update.available && (
+          <div className="update-bar">
+            <Download size={18} />
+            <span>Nouvelle version prête</span>
+            <button type="button" className="btn small accent" onClick={web.reload}>Recharger</button>
+            <button className="icon-btn" aria-label="Plus tard" onClick={web.later}><X size={16} /></button>
+          </div>
+        )}
         {update.available && (
           <div className="update-bar">
             <Download size={18} />
