@@ -28,7 +28,7 @@ function t(s: string | undefined | null): string {
 const m = (n: number) => t(money(n));
 const pct = (n: number) => t(`${new Intl.NumberFormat('fr-CA', { maximumFractionDigits: 3 }).format(n)} %`);
 
-function header(pdf: jsPDF, s: Settings, title: string) {
+function header(pdf: jsPDF, s: Settings, title: string, taxLines: string[] = []) {
   const W = pdf.internal.pageSize.getWidth();
   // Logo en haut à gauche, sur fond blanc; sans logo, le nom de l'entreprise en gras
   let y = 23;
@@ -70,6 +70,8 @@ function header(pdf: jsPDF, s: Settings, title: string) {
     pdf.setFontSize(10.5);
     pdf.text(t(`RBQ : ${s.rbqNumber.trim()}`), W - 15, 27, { align: 'right' });
   }
+  pdf.setFontSize(9);
+  taxLines.forEach((line, i) => pdf.text(t(line), W - 15, (s.rbqNumber?.trim() ? 32.5 : 27) + i * 4.4, { align: 'right' }));
   pdf.setDrawColor(200);
   pdf.setLineWidth(0.3);
   pdf.line(15, 43.5, W - 15, 43.5);
@@ -125,7 +127,9 @@ function drawDevis(pdf: jsPDF, doc: Doc, s: Settings, y0: number, L: DocLang, to
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(13);
   pdf.setTextColor(...NAVY);
-  const title = pdf.splitTextToSize(t(devisTitle(s.companyName, d)), W - 30) as string[];
+  // Sur une facture, le titre n'est plus « Soumission de … »
+  const heading = doc.type === 'invoice' ? upper(d.heading.replace(/^soumission\s+(de\s+|d[’']|pour\s+)?/i, '').trim() || (L === 'en' ? 'Work' : 'Travaux')) : devisTitle(s.companyName, d);
+  const title = pdf.splitTextToSize(t(heading), W - 30) as string[];
   pdf.text(title, 15, y + 3);
   y += title.length * 5.8;
 
@@ -223,6 +227,8 @@ function drawDevis(pdf: jsPDF, doc: Doc, s: Settings, y0: number, L: DocLang, to
     y += w.length * 4.5 + 2;
   }
 
+  // La facture n'a ni les conditions de la soumission ni de signature: c'est la soumission qui a été signée
+  if (doc.type === 'invoice') return y;
   section('Conditions', d.conditions);
 
   // Mot de la fin et signatures restent ensemble: l'entrepreneur (nom, entreprise, métiers) et l'acceptation du client.
@@ -290,7 +296,8 @@ export function buildDocPdf(doc: Doc, client: Client | undefined, s: Settings, p
   const m = (n: number) => t(moneyFor(n, L));
   const fd = (iso: string) => dateFor(iso, L);
   const tx = companyTexts(s, L);
-  header(pdf, s, isInvoice ? T.invoice : T.quote);
+  const taxNumbers = isInvoice && s.chargeTaxes ? [s.tpsNumber?.trim() && `No ${T.gst} : ${s.tpsNumber.trim()}`, s.tvqNumber?.trim() && `No ${T.qst} : ${s.tvqNumber.trim()}`].filter((x): x is string => !!x) : [];
+  header(pdf, s, isInvoice ? T.invoice : T.quote, taxNumbers);
 
   // Deux blocs sur fond gris pâle: le client (gauche) et les infos du document (droite)
   const meta: [string, string][] = [
@@ -376,8 +383,57 @@ export function buildDocPdf(doc: Doc, client: Client | undefined, s: Settings, p
 
   const tot = docTotals(doc, s);
   let ty: number;
-  if (doc.devis) ty = drawDevis(pdf, doc, s, y, L, tot);
-  else {
+  // Notes, moyens de paiement et conditions (factures avec ou sans devis détaillé)
+  const drawNotes = (from: number): number => {
+    let ny = from;
+    const notes = [
+      doc.notes,
+      isInvoice && tx.paymentInstructions ? `${T.paymentMethods}${L === 'fr' ? ' :' : ':'} ${tx.paymentInstructions}` : '',
+      isInvoice ? tx.invoiceConditions : '',
+    ].filter((x) => x && x.trim());
+    if (!notes.length) return ny;
+    const room = (h: number) => {
+      if (ny + h > pdf.internal.pageSize.getHeight() - 18) {
+        pdf.addPage();
+        ny = 20;
+      }
+    };
+    room(14);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(8);
+    pdf.setTextColor(...hexToRgb(accentPalette(s.brandColor || DEFAULT_ACCENT).inkLight));
+    pdf.text(t((L === 'en' ? 'Terms and notes' : 'Conditions et notes').toUpperCase()), 15, ny);
+    ny += 5;
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(40);
+    notes.forEach((n) => {
+      const wrapped = pdf.splitTextToSize(t(n), W - 30) as string[];
+      room(wrapped.length * 4 + 3);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(40);
+      pdf.text(wrapped, 15, ny);
+      ny += wrapped.length * 4 + 3;
+    });
+    return ny;
+  };
+  if (doc.devis) {
+    ty = drawDevis(pdf, doc, s, y, L, tot);
+    if (isInvoice) {
+      const paidRows: [string, string][] = [];
+      if (tot.paid - tot.deposit > 0) paidRows.push([T.payments, m(-(tot.paid - tot.deposit))]);
+      if (tot.paid > 0) paidRows.push([T.balanceDue, m(tot.balance)]);
+      pdf.setFontSize(10);
+      paidRows.forEach(([k, v], i) => {
+        ty += 7;
+        pdf.setFont('helvetica', i === paidRows.length - 1 ? 'bold' : 'normal');
+        pdf.setTextColor(40);
+        pdf.text(t(k), W - 82, ty);
+        pdf.text(v, W - 17, ty, { align: 'right' });
+      });
+      ty = drawNotes(ty + 10);
+    }
+  } else {
     if (doc.title) {
       pdf.setFont('helvetica', 'bold');
       pdf.setFontSize(11);
@@ -458,29 +514,7 @@ export function buildDocPdf(doc: Doc, client: Client | undefined, s: Settings, p
       ty += 7;
     });
 
-    ty += 4;
-    pdf.setTextColor(40);
-    pdf.setFontSize(8.5);
-    const notes = [
-      doc.notes,
-      isInvoice && tx.paymentInstructions ? `${T.paymentMethods}${L === 'fr' ? ' :' : ':'} ${tx.paymentInstructions}` : '',
-      isInvoice ? tx.invoiceConditions : '',
-    ].filter((x) => x && x.trim());
-    if (notes.length) {
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(8);
-      pdf.setTextColor(...hexToRgb(accentPalette(s.brandColor || DEFAULT_ACCENT).inkLight));
-      pdf.text(t((L === 'en' ? 'Terms and notes' : 'Conditions et notes').toUpperCase()), 15, ty);
-      ty += 5;
-      pdf.setFontSize(8.5);
-      pdf.setTextColor(40);
-    }
-    notes.forEach((n) => {
-      const wrapped = pdf.splitTextToSize(t(n), W - 30) as string[];
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(wrapped, 15, ty);
-      ty += wrapped.length * 4 + 3;
-    });
+    ty = drawNotes(ty + 4);
   }
 
   if (!isInvoice && !doc.devis) {

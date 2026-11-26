@@ -318,8 +318,10 @@ export default function DocEditor() {
       title: q.title,
       jobAddress: q.jobAddress,
       jobGeo: q.jobGeo,
-      // Devis: la ligne forfaitaire renvoie à la soumission (le texte détaillé reste sur la soumission)
-      items: q.items.map((it) => ({ ...it, description: q.devis ? `${it.description} — selon la soumission ${q.number}` : it.description })),
+      // La soumission suit la facture: mêmes lignes et, pour un devis détaillé, les mêmes travaux (qu'on peut modifier)
+      items: q.items.map((it) => ({ ...it })),
+      ...(q.devis ? { devis: structuredClone(q.devis) } : {}),
+      ...(q.extraDates?.length ? { extraDates: [...q.extraDates] } : {}),
       applyTps: q.applyTps,
       applyTvq: q.applyTvq,
       taxIncluded: q.taxIncluded,
@@ -453,6 +455,15 @@ export default function DocEditor() {
         </div>
       )}
       <PortalStatus doc={doc} />
+      {isInvoice && s.chargeTaxes && (doc.applyTps || doc.applyTvq) && (!s.tpsNumber?.trim() || !s.tvqNumber?.trim()) && (
+        <div className="notice err">Tes numéros de {[!s.tpsNumber?.trim() && 'TPS', !s.tvqNumber?.trim() && 'TVQ'].filter(Boolean).join(' et ')} ne sont pas inscrits: ils n’apparaîtront pas sur la facture. <Link to="/parametres">Les ajouter dans Paramètres</Link></div>
+      )}
+      {isInvoice && !doc.devis && linked?.src?.devis && (
+        <div className="notice quote-bill">
+          <span>La soumission {linked.src.number} a un devis détaillé.</span>
+          <button type="button" className="btn accent" onClick={() => upd({ devis: structuredClone(linked.src!.devis!), items: linked.src!.items.map((it) => ({ ...it })), applyTps: linked.src!.applyTps, applyTvq: linked.src!.applyTvq, taxIncluded: linked.src!.taxIncluded })}>Reprendre le détail de la soumission</button>
+        </div>
+      )}
       <EstimateLinkNotice doc={doc} />
       {doc.type === 'quote' && doc.id && !doc.convertedInvoiceId && !doc.signature && doc.status !== 'refused' && doc.status !== 'cancelled' && (
         <div className="notice quote-bill">
@@ -485,7 +496,7 @@ export default function DocEditor() {
 
       <div className="card">
         <div className="card-head doc-format-head">
-          <h2>{doc.devis ? 'Devis' : 'Détails'}</h2>
+          <h2>{doc.devis ? (isInvoice ? 'Travaux facturés' : 'Devis') : 'Détails'}</h2>
           {!isInvoice && (
             <div className="seg doc-format" role="tablist" aria-label="Format de la soumission">
               <button type="button" role="tab" aria-selected={!doc.devis} className={doc.devis ? '' : 'on'} onClick={() => void setFormat('lignes')}>Lignes de prix</button>
