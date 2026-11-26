@@ -106,6 +106,9 @@ export interface PdfPhoto {
 }
 
 /** Corps du devis détaillé: titre, sections à puces, prix forfaitaire, conditions, mot de la fin et signature. */
+/** « (No 123456789 RT0001) » à côté de TPS/TVQ sur une facture (rien si le numéro n'est pas inscrit). */
+const taxNo = (doc: Doc, n: string | undefined) => (doc.type === 'invoice' && n?.trim() ? `  (No ${n.trim()})` : '');
+
 function drawDevis(pdf: jsPDF, doc: Doc, s: Settings, y0: number, L: DocLang, tot: Totals): number {
   const d = doc.devis!;
   const T = D[L];
@@ -175,10 +178,13 @@ function drawDevis(pdf: jsPDF, doc: Doc, s: Settings, y0: number, L: DocLang, to
   const included = !!doc.taxIncluded;
   const details: string[] = [];
   if (tot.discount > 0) details.push(`${T.discount} : ${mm(-tot.discount)}`);
-  if (taxed && included) details.push([doc.applyTps && `${T.gstIncl} ${mm(tot.tps)}`, doc.applyTvq && `${T.qstIncl} ${mm(tot.tvq)}`].filter(Boolean).join('   ·   '));
+  if (taxed && included) {
+    if (doc.applyTps) details.push(`${T.gstIncl} ${mm(tot.tps)}${taxNo(doc, s.tpsNumber)}`);
+    if (doc.applyTvq) details.push(`${T.qstIncl} ${mm(tot.tvq)}${taxNo(doc, s.tvqNumber)}`);
+  }
   if (taxed && !included) {
-    if (doc.applyTps) details.push(`${T.gst} (${pct(s.tpsRate)})   ${mm(tot.tps)}`);
-    if (doc.applyTvq) details.push(`${T.qst} (${pct(s.tvqRate)})   ${mm(tot.tvq)}`);
+    if (doc.applyTps) details.push(`${T.gst} (${pct(s.tpsRate)})   ${mm(tot.tps)}${taxNo(doc, s.tpsNumber)}`);
+    if (doc.applyTvq) details.push(`${T.qst} (${pct(s.tvqRate)})   ${mm(tot.tvq)}${taxNo(doc, s.tvqNumber)}`);
   }
   if (tot.deposit > 0) details.push(`${T.deposit} : ${mm(tot.deposit)}`);
   const big = included || !taxed ? tot.total : tot.subtotal;
@@ -487,29 +493,31 @@ export function buildDocPdf(doc: Doc, client: Client | undefined, s: Settings, p
     if (doc.taxIncluded && (doc.applyTps || doc.applyTvq)) {
       // Prix taxes incluses: le total est le prix, les taxes comprises sont indiquées dessous
       rows.push([T.totalTaxIncl, m(tot.total), true]);
-      if (doc.applyTps) rows.push([`${T.gstIncl} (${pct(s.tpsRate)})`, m(tot.tps)]);
-      if (doc.applyTvq) rows.push([`${T.qstIncl} (${pct(s.tvqRate)})`, m(tot.tvq)]);
+      if (doc.applyTps) rows.push([`${T.gstIncl} (${pct(s.tpsRate)})${taxNo(doc, s.tpsNumber)}`, m(tot.tps)]);
+      if (doc.applyTvq) rows.push([`${T.qstIncl} (${pct(s.tvqRate)})${taxNo(doc, s.tvqNumber)}`, m(tot.tvq)]);
     } else {
       if (tot.discount > 0 || doc.applyTps || doc.applyTvq) rows.push([tot.discount > 0 ? T.afterDiscount : T.subtotal, m(tot.subtotal)]);
-      if (doc.applyTps) rows.push([`${T.gst} (${pct(s.tpsRate)})`, m(tot.tps)]);
-      if (doc.applyTvq) rows.push([`${T.qst} (${pct(s.tvqRate)})`, m(tot.tvq)]);
+      if (doc.applyTps) rows.push([`${T.gst} (${pct(s.tpsRate)})${taxNo(doc, s.tpsNumber)}`, m(tot.tps)]);
+      if (doc.applyTvq) rows.push([`${T.qst} (${pct(s.tvqRate)})${taxNo(doc, s.tvqNumber)}`, m(tot.tvq)]);
       rows.push([T.total, m(tot.total), true]);
     }
     if (tot.deposit > 0) rows.push([T.deposit, m(-tot.deposit)]);
     if (isInvoice && tot.paid - tot.deposit > 0) rows.push([T.payments, m(-(tot.paid - tot.deposit))]);
     if (tot.paid > 0) rows.push([isInvoice ? T.balanceDue : T.balance, m(tot.balance), true]);
     pdf.setFontSize(10);
+    const wide = !!(taxNo(doc, s.tpsNumber) || taxNo(doc, s.tvqNumber)) && (doc.applyTps || doc.applyTvq);
+    const lx = wide ? W - 117 : W - 82; // plus large quand les numéros de taxes sont écrits
     rows.forEach(([k, v, bold]) => {
       if (bold) {
         pdf.setFillColor(...NAVY);
-        pdf.rect(W - 85, ty - 4.8, 70, 7.6, 'F');
+        pdf.rect(lx - 3, ty - 4.8, W - 15 - (lx - 3), 7.6, 'F');
         pdf.setTextColor(255);
         pdf.setFont('helvetica', 'bold');
       } else {
         pdf.setTextColor(40);
         pdf.setFont('helvetica', 'normal');
       }
-      pdf.text(t(k), W - 82, ty);
+      pdf.text(t(k), lx, ty);
       pdf.text(v, W - 17, ty, { align: 'right' });
       ty += 7;
     });
